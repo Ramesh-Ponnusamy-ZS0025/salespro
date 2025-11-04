@@ -508,6 +508,181 @@ async def update_campaign_status(campaign_id: str, status: str, current_user: Us
         raise HTTPException(status_code=404, detail="Campaign not found")
     return {"message": "Status updated successfully"}
 
+# ============== CAMPAIGN SEQUENCE ROUTES ==============
+
+@api_router.post("/campaigns/{campaign_id}/sequence")
+async def create_campaign_sequence(campaign_id: str, sequence_data: SequenceCreate, current_user: User = Depends(get_current_user)):
+    # Verify campaign exists
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    agent = await db.agents.find_one({"id": campaign['agent_id']}, {"_id": 0})
+    
+    # Generate initial sequence steps based on touchpoint config
+    steps = []
+    step_number = 1
+    day_counter = 1
+    
+    # Distribute touchpoints
+    for _ in range(sequence_data.touchpoint_config.email_count):
+        steps.append({
+            "step_number": step_number,
+            "day": day_counter,
+            "channel": "email",
+            "content": None,
+            "status": "draft"
+        })
+        step_number += 1
+        day_counter += 1
+    
+    for _ in range(sequence_data.touchpoint_config.linkedin_count):
+        steps.append({
+            "step_number": step_number,
+            "day": day_counter,
+            "channel": "linkedin",
+            "content": None,
+            "status": "draft"
+        })
+        step_number += 1
+        day_counter += 1
+    
+    for _ in range(sequence_data.touchpoint_config.voicemail_count):
+        steps.append({
+            "step_number": step_number,
+            "day": day_counter,
+            "channel": "voicemail",
+            "content": None,
+            "status": "draft"
+        })
+        step_number += 1
+        day_counter += 1
+    
+    # Create sequence
+    sequence = {
+        "id": str(uuid.uuid4()),
+        "campaign_id": campaign_id,
+        "touchpoint_config": sequence_data.touchpoint_config.model_dump(),
+        "steps": steps,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.campaign_sequences.insert_one(sequence)
+    
+    return sequence
+
+@api_router.get("/campaigns/{campaign_id}/sequence")
+async def get_campaign_sequence(campaign_id: str, current_user: User = Depends(get_current_user)):
+    sequence = await db.campaign_sequences.find_one({"campaign_id": campaign_id}, {"_id": 0})
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    return sequence
+
+@api_router.post("/campaigns/{campaign_id}/sequence/steps/{step_number}/generate")
+async def generate_step_content(campaign_id: str, step_number: int, current_user: User = Depends(get_current_user)):
+    # Get campaign and agent details
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    agent = await db.agents.find_one({"id": campaign['agent_id']}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    sequence = await db.campaign_sequences.find_one({"campaign_id": campaign_id}, {"_id": 0})
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    
+    # Find the step
+    step = next((s for s in sequence['steps'] if s['step_number'] == step_number), None)
+    if not step:
+        raise HTTPException(status_code=404, detail="Step not found")
+    
+    # Generate content based on channel and campaign context
+    channel = step['channel']
+    prompt = f"""Generate {channel} content for a {campaign['stage']} campaign.
+
+Campaign: {campaign['campaign_name']}
+Service: {campaign['service']}
+Stage: {campaign['stage']}
+Target ICP: {', '.join(campaign.get('icp', []))}
+Tone: {campaign['tone']}
+
+Agent Profile:
+- Value Propositions: {', '.join(agent.get('value_props', []))}
+- Pain Points: {', '.join(agent.get('pain_points', []))}
+
+Step Details:
+- Channel: {channel}
+- Day: {step['day']}
+- Step Number: {step_number} of {len(sequence['steps'])}
+
+Generate compelling, personalized content for this step. Keep it concise and action-oriented.
+For email: Include subject line and body (max 200 words)
+For LinkedIn: Direct message (max 150 words)
+For voicemail: Script (max 100 words)
+"""
+    
+    content = await generate_llm_response(prompt)
+    
+    # Update step content
+    for s in sequence['steps']:
+        if s['step_number'] == step_number:
+            s['content'] = content
+            s['status'] = 'ready'
+            break
+    
+    await db.campaign_sequences.update_one(
+        {"campaign_id": campaign_id},
+        {"$set": {"steps": sequence['steps'], "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"content": content, "step_number": step_number}
+
+@api_router.put("/campaigns/{campaign_id}/sequence/steps/{step_number}")
+async def update_step(campaign_id: str, step_number: int, step_update: SequenceStepUpdate, current_user: User = Depends(get_current_user)):
+    sequence = await db.campaign_sequences.find_one({"campaign_id": campaign_id}, {"_id": 0})
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    
+    # Update the specific step
+    for step in sequence['steps']:
+        if step['step_number'] == step_number:
+            if step_update.content is not None:
+                step['content'] = step_update.content
+            if step_update.day is not None:
+                step['day'] = step_update.day
+            break
+    
+    await db.campaign_sequences.update_one(
+        {"campaign_id": campaign_id},
+        {"$set": {"steps": sequence['steps'], "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Step updated successfully"}
+
+@api_router.put("/campaigns/{campaign_id}/sequence/reorder")
+async def reorder_sequence(campaign_id: str, step_order: List[int], current_user: User = Depends(get_current_user)):
+    sequence = await db.campaign_sequences.find_one({"campaign_id": campaign_id}, {"_id": 0})
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    
+    # Reorder steps based on provided order
+    reordered_steps = []
+    for new_step_num, old_step_num in enumerate(step_order, 1):
+        step = next((s for s in sequence['steps'] if s['step_number'] == old_step_num), None)
+        if step:
+            step['step_number'] = new_step_num
+            reordered_steps.append(step)
+    
+    await db.campaign_sequences.update_one(
+        {"campaign_id": campaign_id},
+        {"$set": {"steps": reordered_steps, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Sequence reordered successfully"}
+
 # ============== SENDER PROFILE ROUTES ==============
 
 @api_router.post("/sender-profiles", response_model=SenderProfile)
