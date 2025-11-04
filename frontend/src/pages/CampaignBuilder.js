@@ -176,18 +176,21 @@ const CampaignBuilder = ({ user, onLogout }) => {
                 </div>
                 <div>
                   <Label>Select Agent *</Label>
-                  <Select value={formData.agent_id} onValueChange={(value) => setFormData({ ...formData, agent_id: value })} required>
+                  <Select value={formData.agent_id} onValueChange={handleAgentSelect} required>
                     <SelectTrigger data-testid="agent-select">
                       <SelectValue placeholder="Choose an agent" />
                     </SelectTrigger>
                     <SelectContent>
                       {agents.map((agent) => (
                         <SelectItem key={agent.id} value={agent.id}>
-                          {agent.agent_name}
+                          {agent.agent_name} - {agent.service}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Selecting an agent will auto-fill configuration
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
