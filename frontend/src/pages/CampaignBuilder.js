@@ -195,7 +195,7 @@ const CampaignBuilder = ({ user, onLogout }) => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Service *</Label>
+                  <Label>Service * {formData.agent_id && <span className="text-indigo-600 text-xs">(Auto-filled from agent)</span>}</Label>
                   <Select value={formData.service} onValueChange={(value) => setFormData({ ...formData, service: value })} required>
                     <SelectTrigger data-testid="service-select">
                       <SelectValue placeholder="Select a service" />
