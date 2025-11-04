@@ -5,6 +5,26 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
         <meta name="description" content="A product of emergent.sh" />
+        <!-- Suppress ResizeObserver errors early -->
+        <script>
+            (function() {
+                const originalError = window.console.error;
+                window.console.error = function(...args) {
+                    const errorMessage = args[0]?.toString() || '';
+                    if (errorMessage.includes('ResizeObserver loop')) {
+                        return;
+                    }
+                    originalError.apply(console, args);
+                };
+
+                window.addEventListener('error', function(event) {
+                    if (event.message?.includes('ResizeObserver loop')) {
+                        event.stopImmediatePropagation();
+                        event.preventDefault();
+                    }
+                }, true);
+            })();
+        </script>
         <!--
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/

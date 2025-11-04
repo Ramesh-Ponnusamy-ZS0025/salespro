@@ -12,13 +12,14 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
 from passlib.context import CryptContext
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+# from emergentintegrations.llm.chat import LlmChat, UserMessage
 from docx import Document
 from docx.shared import Pt, Inches
 from io import BytesIO
 import base64
 
 ROOT_DIR = Path(__file__).parent
+print('ROOT_DIR',ROOT_DIR)
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
@@ -30,7 +31,7 @@ db = client[os.environ['DB_NAME']]
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
-JWT_SECRET = os.environ.get('JWT_SECRET')
+JWT_SECRET = os.environ.get('JWT_SECRET','mysecret')
 JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 
@@ -251,6 +252,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 # ============== LLM HELPER ==============
 
 async def generate_llm_response(prompt: str, system_message: str = "You are a helpful AI assistant for sales and marketing.") -> str:
+   pass
+   '''
     try:
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
@@ -264,6 +267,7 @@ async def generate_llm_response(prompt: str, system_message: str = "You are a he
     except Exception as e:
         logging.error(f"LLM Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error generating AI response")
+    '''
 
 # ============== AUTH ROUTES ==============
 

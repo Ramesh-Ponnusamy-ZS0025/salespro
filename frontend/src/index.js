@@ -5,18 +5,36 @@ import App from "@/App";
 
 // Suppress ResizeObserver errors (known issue with Radix UI/Shadcn)
 const suppressResizeObserverError = () => {
-  const resizeObserverErr = window.console.error;
+  // Save original console.error
+  const originalError = window.console.error;
+
+  // Override console.error
   window.console.error = (...args) => {
+    // Check if it's a ResizeObserver error
+    const errorMessage = args[0]?.toString() || '';
     if (
-      typeof args[0] === 'string' &&
-      args[0].includes('ResizeObserver loop')
+      errorMessage.includes('ResizeObserver loop') ||
+      errorMessage.includes('ResizeObserver loop completed with undelivered notifications')
     ) {
-      return;
+      return; // Suppress this specific error
     }
-    resizeObserverErr(...args);
+    // Call original error for all other errors
+    originalError.apply(console, args);
   };
+
+  // Also handle uncaught errors in error event handler
+  window.addEventListener('error', (event) => {
+    if (
+      event.message?.includes('ResizeObserver loop') ||
+      event.message?.includes('ResizeObserver loop completed with undelivered notifications')
+    ) {
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    }
+  });
 };
 
+// Apply the suppression before anything else
 suppressResizeObserverError();
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
