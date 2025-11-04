@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
 from passlib.context import CryptContext
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from groq import Groq
 from docx import Document
 from docx.shared import Pt, Inches
 from io import BytesIO
@@ -30,12 +30,13 @@ db = client[os.environ['DB_NAME']]
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
-JWT_SECRET = os.environ.get('JWT_SECRET')
+JWT_SECRET = os.environ.get('JWT_SECRET','mysecret')
 JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 
 # LLM Config
-EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
+GROQ_API_KEY = "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"
+groq_client = Groq(api_key=GROQ_API_KEY)
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -269,11 +270,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-        
+
         user_data = await db.users.find_one({"id": user_id}, {"_id": 0})
         if user_data is None:
             raise HTTPException(status_code=401, detail="User not found")
-        
+
         return User(**user_data)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
@@ -284,19 +285,24 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 async def generate_llm_response(prompt: str, system_message: str = "You are a helpful AI assistant for sales and marketing.") -> str:
     try:
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=str(uuid.uuid4()),
-            system_message=system_message
-        ).with_model("openai", "gpt-4o")
-        
-        user_message = UserMessage(text=prompt)
-        response = await chat.send_message(user_message)
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_message
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model="llama-3.3-70b-versatile",
+        )
+        response = chat_completion.choices[0].message.content
         return response
     except Exception as e:
         logging.error(f"LLM Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error generating AI response")
-
 # ============== AUTH ROUTES ==============
 
 @api_router.post("/auth/register", response_model=TokenResponse)
@@ -541,7 +547,7 @@ async def create_campaign_sequence(campaign_id: str, sequence_data: SequenceCrea
             "step_number": step_number,
             "day": day_counter,
             "channel": "linkedin",
-            "content": None,
+            "content": 'HIIIIIIII',
             "status": "draft"
         })
         step_number += 1
@@ -552,7 +558,7 @@ async def create_campaign_sequence(campaign_id: str, sequence_data: SequenceCrea
             "step_number": step_number,
             "day": day_counter,
             "channel": "voicemail",
-            "content": None,
+            "content": 'HIIIIIIII',
             "status": "draft"
         })
         step_number += 1
@@ -568,8 +574,10 @@ async def create_campaign_sequence(campaign_id: str, sequence_data: SequenceCrea
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
     
-    await db.campaign_sequences.insert_one(sequence)
+    # Insert and get the result excluding MongoDB's _id
+    await db.campaign_sequences.insert_one(sequence.copy())
     
+    # Return sequence without _id field
     return sequence
 
 @api_router.get("/campaigns/{campaign_id}/sequence")
@@ -668,12 +676,15 @@ async def reorder_sequence(campaign_id: str, step_order: List[int], current_user
     if not sequence:
         raise HTTPException(status_code=404, detail="Sequence not found")
     
-    # Reorder steps based on provided order
+    # Create a mapping of old step numbers to steps
+    step_map = {step['step_number']: step for step in sequence['steps']}
+    
+    # Reorder steps based on provided order and update step numbers
     reordered_steps = []
-    for new_step_num, old_step_num in enumerate(step_order, 1):
-        step = next((s for s in sequence['steps'] if s['step_number'] == old_step_num), None)
-        if step:
-            step['step_number'] = new_step_num
+    for new_index, old_step_num in enumerate(step_order, 1):
+        if old_step_num in step_map:
+            step = step_map[old_step_num].copy()
+            step['step_number'] = new_index
             reordered_steps.append(step)
     
     await db.campaign_sequences.update_one(
@@ -681,7 +692,7 @@ async def reorder_sequence(campaign_id: str, step_order: List[int], current_user
         {"$set": {"steps": reordered_steps, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
-    return {"message": "Sequence reordered successfully"}
+    return {"message": "Sequence reordered successfully", "steps": reordered_steps}
 
 # ============== SENDER PROFILE ROUTES ==============
 

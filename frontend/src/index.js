@@ -7,7 +7,7 @@ import App from "@/App";
 const suppressResizeObserverError = () => {
   // Save original console.error
   const originalError = window.console.error;
-  
+
   // Override console.error
   window.console.error = (...args) => {
     // Check if it's a ResizeObserver error
@@ -21,7 +21,7 @@ const suppressResizeObserverError = () => {
     // Call original error for all other errors
     originalError.apply(console, args);
   };
-  
+
   // Also handle uncaught errors in error event handler
   window.addEventListener('error', (event) => {
     if (
