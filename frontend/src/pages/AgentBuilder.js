@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Layout from '../components/Layout';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Eye, Sparkles } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Sparkles, X } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -14,19 +14,59 @@ import { Badge } from '../components/ui/badge';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Predefined service options
+const SERVICES = [
+  'Quality Engineering',
+  'Digital Transformation',
+  'Data Engineering',
+  'Cloud Services',
+  'DevOps',
+  'Cybersecurity',
+  'AI & Machine Learning',
+  'Product Engineering',
+  'Consulting',
+];
+
+const SUB_SERVICES = {
+  'Quality Engineering': ['Test Automation', 'Performance Testing', 'Security Testing', 'Manual Testing', 'QA Consulting'],
+  'Digital Transformation': ['Cloud Migration', 'Legacy Modernization', 'Digital Strategy', 'Process Automation'],
+  'Data Engineering': ['Data Warehousing', 'ETL Pipeline', 'Big Data', 'Data Analytics', 'Business Intelligence'],
+  'Cloud Services': ['AWS', 'Azure', 'Google Cloud', 'Multi-Cloud', 'Cloud Architecture'],
+  'DevOps': ['CI/CD', 'Infrastructure as Code', 'Monitoring', 'Container Orchestration', 'Release Management'],
+  'Cybersecurity': ['Security Assessment', 'Penetration Testing', 'Compliance', 'Security Operations'],
+  'AI & Machine Learning': ['Machine Learning', 'Deep Learning', 'NLP', 'Computer Vision', 'MLOps'],
+  'Product Engineering': ['Product Development', 'MVP Development', 'Product Strategy', 'UX/UI Design'],
+  'Consulting': ['Technology Consulting', 'Business Consulting', 'Strategy Consulting'],
+};
+
+const PERSONAS = [
+  'CTO',
+  'VP Engineering',
+  'IT Director',
+  'Head of QA',
+  'DevOps Manager',
+  'Product Manager',
+  'Engineering Manager',
+  'Director of IT',
+  'Chief Digital Officer',
+  'Head of Innovation',
+  'Technical Architect',
+  'VP of Operations',
+];
+
 const AgentBuilder = ({ user, onLogout }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [selectedPersonas, setSelectedPersonas] = useState([]);
   const [formData, setFormData] = useState({
     agent_name: '',
     service: '',
     sub_service: '',
     value_props: '',
     pain_points: '',
-    personas: '',
     tone: 'professional',
     methodologies: '',
     example_copies: '',
