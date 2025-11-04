@@ -175,12 +175,18 @@ const CampaignBuilder = ({ user, onLogout }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Service *</Label>
-                  <Input
-                    value={formData.service}
-                    onChange={(e) => setFormData({ ...formData, service: e.target.value })}
-                    placeholder="Digital Transformation"
-                    required
-                  />
+                  <Select value={formData.service} onValueChange={(value) => setFormData({ ...formData, service: value })} required>
+                    <SelectTrigger data-testid="service-select">
+                      <SelectValue placeholder="Select a service" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SERVICES.map((service) => (
+                        <SelectItem key={service} value={service}>
+                          {service}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Funnel Stage *</Label>
