@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { toast } from 'sonner';
-import { Plus, ArrowRight, Mail, MessageSquare, Phone, Filter } from 'lucide-react';
+import { Plus, ArrowRight, Mail, MessageSquare, Phone, Filter, Megaphone } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
