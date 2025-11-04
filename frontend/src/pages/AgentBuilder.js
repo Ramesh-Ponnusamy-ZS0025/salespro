@@ -127,13 +127,13 @@ const AgentBuilder = ({ user, onLogout }) => {
 
   const handleEdit = (agent) => {
     setEditingAgent(agent);
+    setSelectedPersonas(agent.personas || []);
     setFormData({
       agent_name: agent.agent_name,
       service: agent.service,
       sub_service: agent.sub_service || '',
       value_props: agent.value_props.join(', '),
       pain_points: agent.pain_points.join(', '),
-      personas: agent.personas.join(', '),
       tone: agent.tone,
       methodologies: agent.methodologies.join(', '),
       example_copies: agent.example_copies.join('\n'),
