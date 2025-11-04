@@ -224,7 +224,7 @@ const CampaignBuilder = ({ user, onLogout }) => {
                 </div>
               </div>
               <div>
-                <Label>Target ICP (comma-separated) *</Label>
+                <Label>Target ICP (comma-separated) * {formData.agent_id && <span className="text-indigo-600 text-xs">(Auto-filled from agent personas)</span>}</Label>
                 <Input
                   value={formData.icp}
                   onChange={(e) => setFormData({ ...formData, icp: e.target.value })}
@@ -234,7 +234,7 @@ const CampaignBuilder = ({ user, onLogout }) => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Methodologies (comma-separated)</Label>
+                  <Label>Methodologies (comma-separated) {formData.agent_id && <span className="text-indigo-600 text-xs">(Auto-filled)</span>}</Label>
                   <Input
                     value={formData.methodologies}
                     onChange={(e) => setFormData({ ...formData, methodologies: e.target.value })}
@@ -242,7 +242,7 @@ const CampaignBuilder = ({ user, onLogout }) => {
                   />
                 </div>
                 <div>
-                  <Label>Tone</Label>
+                  <Label>Tone {formData.agent_id && <span className="text-indigo-600 text-xs">(Auto-filled)</span>}</Label>
                   <Select value={formData.tone} onValueChange={(value) => setFormData({ ...formData, tone: value })}>
                     <SelectTrigger>
                       <SelectValue />
