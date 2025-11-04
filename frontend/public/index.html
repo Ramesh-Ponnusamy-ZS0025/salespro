@@ -16,7 +16,7 @@
                     }
                     originalError.apply(console, args);
                 };
-                
+
                 window.addEventListener('error', function(event) {
                     if (event.message?.includes('ResizeObserver loop')) {
                         event.stopImmediatePropagation();
