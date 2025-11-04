@@ -89,13 +89,19 @@ const AgentBuilder = ({ user, onLogout }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (selectedPersonas.length === 0) {
+      toast.error('Please select at least one target persona');
+      return;
+    }
+    
     setLoading(true);
 
     const payload = {
       ...formData,
       value_props: formData.value_props.split(',').map(v => v.trim()).filter(Boolean),
       pain_points: formData.pain_points.split(',').map(p => p.trim()).filter(Boolean),
-      personas: formData.personas.split(',').map(p => p.trim()).filter(Boolean),
+      personas: selectedPersonas,
       methodologies: formData.methodologies.split(',').map(m => m.trim()).filter(Boolean),
       example_copies: formData.example_copies.split('\n').filter(Boolean),
     };
