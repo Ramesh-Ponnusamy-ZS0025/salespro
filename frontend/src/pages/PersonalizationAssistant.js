@@ -9,47 +9,38 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card } from '../components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const PersonalizationAssistant = ({ user, onLogout }) => {
   const [agents, setAgents] = useState([]);
-  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState(null);
-  const [showProfileDialog, setShowProfileDialog] = useState(false);
+  const [userProfile, setUserProfile] = useState({
+    name: user?.username || '',
+    position: '',
+    company: '',
+    email: user?.email || '',
+    phone: '',
+  });
   const [formData, setFormData] = useState({
     origin_url: '',
     agent_id: '',
-    sender_profile_id: '',
     keywords: '',
-    notes: '',
-  });
-  const [profileForm, setProfileForm] = useState({
-    name: '',
-    position: '',
-    company: '',
-    email: '',
-    phone: '',
-    signature_template: '',
+    custom_input: '',
   });
 
   useEffect(() => {
-    fetchData();
+    fetchAgents();
   }, []);
 
-  const fetchData = async () => {
+  const fetchAgents = async () => {
     try {
-      const [agentsRes, profilesRes] = await Promise.all([
-        axios.get(`${API}/agents`),
-        axios.get(`${API}/sender-profiles`),
-      ]);
-      setAgents(agentsRes.data);
-      setProfiles(profilesRes.data);
+      const response = await axios.get(`${API}/agents`);
+      setAgents(response.data);
     } catch (error) {
-      toast.error('Failed to fetch data');
+      toast.error('Failed to fetch agents');
     }
   };
 
@@ -58,8 +49,11 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
     setLoading(true);
 
     const payload = {
-      ...formData,
+      origin_url: formData.origin_url,
+      agent_id: formData.agent_id,
       keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
+      notes: formData.custom_input,
+      sender_profile: userProfile,
     };
 
     try {
@@ -70,26 +64,6 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
       toast.error(error.response?.data?.detail || 'Failed to generate message');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCreateProfile = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post(`${API}/sender-profiles`, profileForm);
-      toast.success('Sender profile created!');
-      setShowProfileDialog(false);
-      setProfileForm({
-        name: '',
-        position: '',
-        company: '',
-        email: '',
-        phone: '',
-        signature_template: '',
-      });
-      fetchData();
-    } catch (error) {
-      toast.error('Failed to create profile');
     }
   };
 
@@ -112,6 +86,47 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="p-6 bg-white border border-slate-200 shadow-lg">
               <h3 className="text-lg font-bold text-slate-900 mb-4">Generate Message</h3>
+              
+              {/* User Profile Section */}
+              <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <User size={18} className="text-indigo-600" />
+                  <Label className="text-indigo-900 font-semibold">Your Profile (Editable)</Label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Name"
+                    value={userProfile.name}
+                    onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })}
+                    className="bg-white"
+                  />
+                  <Input
+                    placeholder="Position"
+                    value={userProfile.position}
+                    onChange={(e) => setUserProfile({ ...userProfile, position: e.target.value })}
+                    className="bg-white"
+                  />
+                  <Input
+                    placeholder="Company"
+                    value={userProfile.company}
+                    onChange={(e) => setUserProfile({ ...userProfile, company: e.target.value })}
+                    className="bg-white"
+                  />
+                  <Input
+                    placeholder="Email"
+                    value={userProfile.email}
+                    onChange={(e) => setUserProfile({ ...userProfile, email: e.target.value })}
+                    className="bg-white"
+                  />
+                  <Input
+                    placeholder="Phone"
+                    value={userProfile.phone}
+                    onChange={(e) => setUserProfile({ ...userProfile, phone: e.target.value })}
+                    className="bg-white col-span-2"
+                  />
+                </div>
+              </div>
+
               <form onSubmit={handleGenerate} className="space-y-4">
                 <div>
                   <Label>LinkedIn or Company URL *</Label>
@@ -139,91 +154,6 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
                   </Select>
                 </div>
                 <div>
-                  <Label>Sender Profile *</Label>
-                  <div className="flex gap-2">
-                    <Select
-                      value={formData.sender_profile_id}
-                      onValueChange={(value) => setFormData({ ...formData, sender_profile_id: value })}
-                      required
-                    >
-                      <SelectTrigger data-testid="profile-select" className="flex-1">
-                        <SelectValue placeholder="Choose a profile" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {profiles.map((profile) => (
-                          <SelectItem key={profile.id} value={profile.id}>
-                            {profile.name} - {profile.position}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
-                      <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="icon" data-testid="add-profile-button">
-                          <User size={18} />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Create Sender Profile</DialogTitle>
-                        </DialogHeader>
-                        <form onSubmit={handleCreateProfile} className="space-y-3">
-                          <div>
-                            <Label>Name *</Label>
-                            <Input
-                              value={profileForm.name}
-                              onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label>Position *</Label>
-                            <Input
-                              value={profileForm.position}
-                              onChange={(e) => setProfileForm({ ...profileForm, position: e.target.value })}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label>Company *</Label>
-                            <Input
-                              value={profileForm.company}
-                              onChange={(e) => setProfileForm({ ...profileForm, company: e.target.value })}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label>Email *</Label>
-                            <Input
-                              type="email"
-                              value={profileForm.email}
-                              onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label>Phone</Label>
-                            <Input
-                              value={profileForm.phone}
-                              onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                            />
-                          </div>
-                          <div>
-                            <Label>Signature Template *</Label>
-                            <Textarea
-                              value={profileForm.signature_template}
-                              onChange={(e) => setProfileForm({ ...profileForm, signature_template: e.target.value })}
-                              placeholder="Best regards,\n{name}\n{position}\n{company}"
-                              required
-                            />
-                          </div>
-                          <Button type="submit" className="w-full">Create Profile</Button>
-                        </form>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-                <div>
                   <Label>Keywords (comma-separated)</Label>
                   <Input
                     value={formData.keywords}
@@ -232,10 +162,10 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
                   />
                 </div>
                 <div>
-                  <Label>Additional Notes</Label>
+                  <Label>Custom Input</Label>
                   <Textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    value={formData.custom_input}
+                    onChange={(e) => setFormData({ ...formData, custom_input: e.target.value })}
                     placeholder="Any specific context or details..."
                     rows={3}
                   />

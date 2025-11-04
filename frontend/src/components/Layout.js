@@ -23,7 +23,7 @@ const Layout = ({ children, user, onLogout }) => {
       <aside className="w-64 bg-white/90 backdrop-blur-sm border-r border-slate-200 flex flex-col shadow-xl">
         <div className="p-6 border-b border-slate-200" data-testid="sidebar-header">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-            SalesForce Pro
+            TaRaZ
           </h1>
           <p className="text-sm text-slate-500 mt-1">AI-Powered Sales Platform</p>
         </div>

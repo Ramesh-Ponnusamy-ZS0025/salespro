@@ -7,7 +7,6 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 
@@ -45,7 +44,6 @@ const DocumentGenerator = ({ user, onLogout }) => {
         variables,
       });
       
-      // Download the document
       const link = document.createElement('a');
       link.href = response.data.doc_url;
       link.download = `${templateType}_${Date.now()}.docx`;
@@ -63,81 +61,51 @@ const DocumentGenerator = ({ user, onLogout }) => {
 
   const renderNDAForm = () => (
     <>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Party 1 Name *</Label>
-          <Input
-            data-testid="party1-name-input"
-            value={variables.party1_name || ''}
-            onChange={(e) => setVariables({ ...variables, party1_name: e.target.value })}
-            placeholder="Company A Inc."
-            required
-          />
-        </div>
-        <div>
-          <Label>Party 1 Short Name *</Label>
-          <Input
-            value={variables.party1_short || ''}
-            onChange={(e) => setVariables({ ...variables, party1_short: e.target.value })}
-            placeholder="Company A"
-            required
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Party 2 Name *</Label>
-          <Input
-            value={variables.party2_name || ''}
-            onChange={(e) => setVariables({ ...variables, party2_name: e.target.value })}
-            placeholder="Company B LLC"
-            required
-          />
-        </div>
-        <div>
-          <Label>Party 2 Short Name *</Label>
-          <Input
-            value={variables.party2_short || ''}
-            onChange={(e) => setVariables({ ...variables, party2_short: e.target.value })}
-            placeholder="Company B"
-            required
-          />
-        </div>
-      </div>
       <div>
-        <Label>Agreement Date *</Label>
+        <Label>Date *</Label>
         <Input
           type="date"
+          data-testid="nda-date-input"
           value={variables.date || ''}
           onChange={(e) => setVariables({ ...variables, date: e.target.value })}
           required
         />
       </div>
       <div>
-        <Label>Term Period *</Label>
+        <Label>Customer Company Name *</Label>
         <Input
-          value={variables.term || ''}
-          onChange={(e) => setVariables({ ...variables, term: e.target.value })}
-          placeholder="2 years from the date of signing"
+          value={variables.customer_company_name || ''}
+          onChange={(e) => setVariables({ ...variables, customer_company_name: e.target.value })}
+          placeholder="ABC Corporation"
           required
         />
       </div>
       <div>
-        <Label>Confidential Information Description</Label>
+        <Label>Customer Company Address *</Label>
         <Textarea
-          value={variables.confidential_info || ''}
-          onChange={(e) => setVariables({ ...variables, confidential_info: e.target.value })}
-          placeholder="Technical specifications, business plans, customer data..."
-          rows={3}
+          value={variables.customer_company_address || ''}
+          onChange={(e) => setVariables({ ...variables, customer_company_address: e.target.value })}
+          placeholder="123 Business St, Suite 100, City, State 12345"
+          rows={2}
+          required
         />
       </div>
       <div>
-        <Label>Obligations</Label>
-        <Textarea
-          value={variables.obligations || ''}
-          onChange={(e) => setVariables({ ...variables, obligations: e.target.value })}
-          placeholder="Both parties agree not to disclose..."
-          rows={3}
+        <Label>Title *</Label>
+        <Input
+          value={variables.title || ''}
+          onChange={(e) => setVariables({ ...variables, title: e.target.value })}
+          placeholder="CEO"
+          required
+        />
+      </div>
+      <div>
+        <Label>Name *</Label>
+        <Input
+          value={variables.name || ''}
+          onChange={(e) => setVariables({ ...variables, name: e.target.value })}
+          placeholder="John Doe"
+          required
         />
       </div>
     </>
@@ -146,58 +114,67 @@ const DocumentGenerator = ({ user, onLogout }) => {
   const renderMSAForm = () => (
     <>
       <div>
-        <Label>Client Name *</Label>
+        <Label>Date *</Label>
         <Input
-          data-testid="client-name-input"
-          value={variables.client_name || ''}
-          onChange={(e) => setVariables({ ...variables, client_name: e.target.value })}
-          placeholder="ABC Corporation"
+          type="date"
+          data-testid="msa-date-input"
+          value={variables.date || ''}
+          onChange={(e) => setVariables({ ...variables, date: e.target.value })}
           required
         />
       </div>
       <div>
-        <Label>Service Provider Name *</Label>
+        <Label>Company Name *</Label>
         <Input
-          value={variables.provider_name || ''}
-          onChange={(e) => setVariables({ ...variables, provider_name: e.target.value })}
+          value={variables.company_name || ''}
+          onChange={(e) => setVariables({ ...variables, company_name: e.target.value })}
           placeholder="Your Company Inc."
           required
         />
       </div>
       <div>
-        <Label>Effective Date *</Label>
-        <Input
-          type="date"
-          value={variables.effective_date || ''}
-          onChange={(e) => setVariables({ ...variables, effective_date: e.target.value })}
-          required
-        />
-      </div>
-      <div>
-        <Label>Services Description *</Label>
+        <Label>Customer Company Address *</Label>
         <Textarea
-          value={variables.services_desc || ''}
-          onChange={(e) => setVariables({ ...variables, services_desc: e.target.value })}
-          placeholder="Software development, consulting, support services..."
-          rows={3}
-          required
-        />
-      </div>
-      <div>
-        <Label>Payment Terms</Label>
-        <Textarea
-          value={variables.payment_terms || ''}
-          onChange={(e) => setVariables({ ...variables, payment_terms: e.target.value })}
-          placeholder="Net 30 days from invoice date..."
+          value={variables.customer_company_address || ''}
+          onChange={(e) => setVariables({ ...variables, customer_company_address: e.target.value })}
+          placeholder="123 Business St, Suite 100, City, State 12345"
           rows={2}
+          required
         />
       </div>
       <div>
-        <Label>Term Period *</Label>
+        <Label>Point of Contact *</Label>
         <Input
-          value={variables.term || ''}
-          onChange={(e) => setVariables({ ...variables, term: e.target.value })}
-          placeholder="12 months"
+          value={variables.point_of_contact || ''}
+          onChange={(e) => setVariables({ ...variables, point_of_contact: e.target.value })}
+          placeholder="Jane Smith"
+          required
+        />
+      </div>
+      <div>
+        <Label>Customer Company Name *</Label>
+        <Input
+          value={variables.customer_company_name || ''}
+          onChange={(e) => setVariables({ ...variables, customer_company_name: e.target.value })}
+          placeholder="ABC Corporation"
+          required
+        />
+      </div>
+      <div>
+        <Label>Title *</Label>
+        <Input
+          value={variables.title || ''}
+          onChange={(e) => setVariables({ ...variables, title: e.target.value })}
+          placeholder="VP Operations"
+          required
+        />
+      </div>
+      <div>
+        <Label>Name *</Label>
+        <Input
+          value={variables.name || ''}
+          onChange={(e) => setVariables({ ...variables, name: e.target.value })}
+          placeholder="John Doe"
           required
         />
       </div>
@@ -224,19 +201,6 @@ const DocumentGenerator = ({ user, onLogout }) => {
           placeholder="ABC Corporation"
           required
         />
-      </div>
-      <div>
-        <Label>Engagement Model *</Label>
-        <Select value={engagementModel} onValueChange={setEngagementModel}>
-          <SelectTrigger data-testid="engagement-model-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="t&m">Time & Materials</SelectItem>
-            <SelectItem value="dedicated">Dedicated Team</SelectItem>
-            <SelectItem value="fixed_bid">Fixed Bid</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
       <div>
         <Label>Scope of Work *</Label>
@@ -322,41 +286,6 @@ const DocumentGenerator = ({ user, onLogout }) => {
                     <TabsContent value="nda">{renderNDAForm()}</TabsContent>
                     <TabsContent value="msa">{renderMSAForm()}</TabsContent>
                     <TabsContent value="sow">{renderSOWForm()}</TabsContent>
-
-                    <div className="grid grid-cols-2 gap-4 pt-4">
-                      <div>
-                        <Label>Signatory 1 Name</Label>
-                        <Input
-                          value={variables.signatory1_name || ''}
-                          onChange={(e) => setVariables({ ...variables, signatory1_name: e.target.value })}
-                          placeholder="John Doe"
-                        />
-                      </div>
-                      <div>
-                        <Label>Signatory 1 Title</Label>
-                        <Input
-                          value={variables.signatory1_title || ''}
-                          onChange={(e) => setVariables({ ...variables, signatory1_title: e.target.value })}
-                          placeholder="CEO"
-                        />
-                      </div>
-                      <div>
-                        <Label>Signatory 2 Name</Label>
-                        <Input
-                          value={variables.signatory2_name || ''}
-                          onChange={(e) => setVariables({ ...variables, signatory2_name: e.target.value })}
-                          placeholder="Jane Smith"
-                        />
-                      </div>
-                      <div>
-                        <Label>Signatory 2 Title</Label>
-                        <Input
-                          value={variables.signatory2_title || ''}
-                          onChange={(e) => setVariables({ ...variables, signatory2_title: e.target.value })}
-                          placeholder="VP Operations"
-                        />
-                      </div>
-                    </div>
 
                     <Button
                       type="submit"

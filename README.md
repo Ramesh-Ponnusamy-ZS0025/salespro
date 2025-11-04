@@ -1,4 +1,4 @@
-# SalesForce Pro - AI-Powered Sales Platform
+# TaRaZ - AI-Powered Sales Platform
 
 A comprehensive full-stack sales platform with 9 powerful modules to streamline your entire sales operation, from campaign creation to document generation and performance analytics.
 

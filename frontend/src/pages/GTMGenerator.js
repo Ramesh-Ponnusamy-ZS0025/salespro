@@ -21,7 +21,6 @@ const GTMGenerator = ({ user, onLogout }) => {
     offering: '',
     pain_points: '',
     personas: '',
-    target_persons: '',
   });
 
   const handleGenerate = async (e) => {
@@ -32,7 +31,7 @@ const GTMGenerator = ({ user, onLogout }) => {
       ...formData,
       pain_points: formData.pain_points.split(',').map(p => p.trim()).filter(Boolean),
       personas: formData.personas.split(',').map(p => p.trim()).filter(Boolean),
-      target_persons: formData.target_persons.split(',').map(p => p.trim()).filter(Boolean),
+      target_persons: formData.personas.split(',').map(p => p.trim()).filter(Boolean),
     };
 
     try {
@@ -106,21 +105,12 @@ const GTMGenerator = ({ user, onLogout }) => {
                   />
                 </div>
                 <div>
-                  <Label>Target Personas (comma-separated) *</Label>
+                  <Label>Target Decision Makers (comma-separated) *</Label>
                   <Input
+                    data-testid="personas-input"
                     value={formData.personas}
                     onChange={(e) => setFormData({ ...formData, personas: e.target.value })}
-                    placeholder="Sales Directors, VP of Sales, Revenue Operations"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Key Decision Makers (comma-separated) *</Label>
-                  <Input
-                    data-testid="target-persons-input"
-                    value={formData.target_persons}
-                    onChange={(e) => setFormData({ ...formData, target_persons: e.target.value })}
-                    placeholder="John Smith (CEO), Jane Doe (CRO)"
+                    placeholder="John Smith (CEO), Jane Doe (CRO), Sales Directors"
                     required
                   />
                 </div>
