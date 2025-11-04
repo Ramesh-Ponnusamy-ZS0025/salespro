@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import Layout from '../components/Layout';
 import { toast } from 'sonner';
-import { Sparkles, Mail } from 'lucide-react';
+import { Sparkles, Mail, FileText } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 
@@ -14,24 +14,20 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const ThreadIntelligence = ({ user, onLogout }) => {
-  const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [threadText, setThreadText] = useState('');
-  const [selectedAgent, setSelectedAgent] = useState('');
+  const [customInputs, setCustomInputs] = useState('');
+  const [selectedCaseStudy, setSelectedCaseStudy] = useState('');
 
-  useEffect(() => {
-    fetchAgents();
-  }, []);
-
-  const fetchAgents = async () => {
-    try {
-      const response = await axios.get(`${API}/agents`);
-      setAgents(response.data);
-    } catch (error) {
-      toast.error('Failed to fetch agents');
-    }
-  };
+  // Mock case studies - in production, fetch from backend
+  const caseStudies = [
+    { id: '1', title: 'Enterprise Cloud Migration Success', industry: 'Technology' },
+    { id: '2', title: 'AI Implementation for Healthcare', industry: 'Healthcare' },
+    { id: '3', title: 'Digital Transformation in Finance', industry: 'Finance' },
+    { id: '4', title: 'DevOps Automation Case Study', industry: 'Technology' },
+    { id: '5', title: 'Quality Engineering Excellence', industry: 'Manufacturing' },
+  ];
 
   const handleAnalyze = async () => {
     if (!threadText.trim()) {
@@ -43,7 +39,8 @@ const ThreadIntelligence = ({ user, onLogout }) => {
     try {
       const response = await axios.post(`${API}/thread/analyze`, {
         thread_text: threadText,
-        agent_id: selectedAgent || null,
+        custom_inputs: customInputs,
+        case_study_id: selectedCaseStudy,
       });
       setAnalysis(response.data);
       toast.success('Thread analyzed successfully!');
@@ -55,7 +52,7 @@ const ThreadIntelligence = ({ user, onLogout }) => {
   };
 
   const getSentimentColor = (sentiment) => {
-    switch (sentiment.toLowerCase()) {
+    switch (sentiment?.toLowerCase()) {
       case 'positive':
         return 'bg-green-100 text-green-700';
       case 'negative':
@@ -66,7 +63,7 @@ const ThreadIntelligence = ({ user, onLogout }) => {
   };
 
   const getStageColor = (stage) => {
-    switch (stage.toLowerCase()) {
+    switch (stage?.toLowerCase()) {
       case 'hot':
         return 'bg-red-100 text-red-700';
       case 'warm':
@@ -96,24 +93,48 @@ const ThreadIntelligence = ({ user, onLogout }) => {
                     value={threadText}
                     onChange={(e) => setThreadText(e.target.value)}
                     placeholder="Paste your email thread here...\n\nFrom: John Doe\nTo: Jane Smith\nSubject: Product Demo\n\nHi Jane,\n\nThank you for the demo..."
-                    rows={12}
+                    rows={10}
                     className="font-mono text-sm"
                   />
                 </div>
                 <div>
-                  <Label>Select Agent (Optional)</Label>
-                  <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-                    <SelectTrigger data-testid="agent-select">
-                      <SelectValue placeholder="Choose an agent for follow-up" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.id}>
-                          {agent.agent_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Custom Inputs</Label>
+                  <Textarea
+                    data-testid="custom-inputs"
+                    value={customInputs}
+                    onChange={(e) => setCustomInputs(e.target.value)}
+                    placeholder="Add any specific context, requirements, or notes that should be considered in the analysis..."
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label>Select Relevant Case Study</Label>
+                  <div className="border border-slate-200 rounded-md p-3 bg-white max-h-48 overflow-y-auto">
+                    {caseStudies.map((caseStudy) => (
+                      <div
+                        key={caseStudy.id}
+                        onClick={() => setSelectedCaseStudy(caseStudy.id)}
+                        className={`p-3 mb-2 rounded-lg border-2 cursor-pointer transition-all ${
+                          selectedCaseStudy === caseStudy.id
+                            ? 'border-indigo-600 bg-indigo-50'
+                            : 'border-slate-200 hover:border-indigo-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-semibold text-sm text-slate-900">{caseStudy.title}</p>
+                            <p className="text-xs text-slate-600 mt-1">{caseStudy.industry}</p>
+                          </div>
+                          {selectedCaseStudy === caseStudy.id && (
+                            <FileText size={16} className="text-indigo-600" />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {selectedCaseStudy ? 'Case study selected' : 'Optional: Select a relevant case study to reference'}
+                  </p>
                 </div>
                 <Button
                   onClick={handleAnalyze}
@@ -163,7 +184,7 @@ const ThreadIntelligence = ({ user, onLogout }) => {
                       <div>
                         <p className="text-sm font-semibold text-slate-700 mb-2">Suggestions:</p>
                         <ul className="space-y-2">
-                          {analysis.suggestions.map((suggestion, idx) => (
+                          {analysis.suggestions?.map((suggestion, idx) => (
                             <li key={idx} className="flex items-start gap-2">
                               <span className="text-indigo-600 mt-1">•</span>
                               <span className="text-sm text-slate-700">{suggestion}</span>
