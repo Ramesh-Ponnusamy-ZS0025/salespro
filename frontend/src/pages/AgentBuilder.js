@@ -228,21 +228,41 @@ const AgentBuilder = ({ user, onLogout }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Service *</Label>
-                    <Input
-                      data-testid="service-input"
-                      value={formData.service}
-                      onChange={(e) => setFormData({ ...formData, service: e.target.value })}
-                      placeholder="e.g., Digital Transformation"
+                    <Select 
+                      value={formData.service} 
+                      onValueChange={(value) => setFormData({ ...formData, service: value, sub_service: '' })}
                       required
-                    />
+                    >
+                      <SelectTrigger data-testid="service-select">
+                        <SelectValue placeholder="Select a service" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SERVICES.map((service) => (
+                          <SelectItem key={service} value={service}>
+                            {service}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Sub-Service</Label>
-                    <Input
-                      value={formData.sub_service}
-                      onChange={(e) => setFormData({ ...formData, sub_service: e.target.value })}
-                      placeholder="e.g., Cloud Migration"
-                    />
+                    <Select 
+                      value={formData.sub_service} 
+                      onValueChange={(value) => setFormData({ ...formData, sub_service: value })}
+                      disabled={!formData.service}
+                    >
+                      <SelectTrigger data-testid="sub-service-select">
+                        <SelectValue placeholder={formData.service ? "Select sub-service" : "Select service first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.service && SUB_SERVICES[formData.service]?.map((subService) => (
+                          <SelectItem key={subService} value={subService}>
+                            {subService}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div>
