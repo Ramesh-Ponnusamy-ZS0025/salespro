@@ -120,6 +120,38 @@ class CampaignCreate(BaseModel):
     tone: str
     resources: List[str] = []
 
+# NEW: Campaign Sequence Models
+class TouchpointConfig(BaseModel):
+    total_touchpoints: int
+    email_count: int
+    linkedin_count: int
+    voicemail_count: int
+
+class SequenceStep(BaseModel):
+    step_number: int
+    day: int
+    channel: str  # email, linkedin, voicemail
+    content: Optional[str] = None
+    status: str = "draft"  # draft, generating, ready
+
+class CampaignSequence(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    campaign_id: str
+    touchpoint_config: TouchpointConfig
+    steps: List[SequenceStep] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SequenceCreate(BaseModel):
+    campaign_id: str
+    touchpoint_config: TouchpointConfig
+
+class SequenceStepUpdate(BaseModel):
+    step_number: int
+    content: Optional[str] = None
+    day: Optional[int] = None
+
 class SenderProfile(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
