@@ -14,6 +14,19 @@ import { Card } from '../components/ui/card';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Predefined service options (same as Agent Builder)
+const SERVICES = [
+  'Quality Engineering',
+  'Digital Transformation',
+  'Data Engineering',
+  'Cloud Services',
+  'DevOps',
+  'Cybersecurity',
+  'AI & Machine Learning',
+  'Product Engineering',
+  'Consulting',
+];
+
 const CampaignBuilder = ({ user, onLogout }) => {
   const [campaigns, setCampaigns] = useState([]);
   const [agents, setAgents] = useState([]);
