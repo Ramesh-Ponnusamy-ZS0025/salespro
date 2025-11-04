@@ -1,0 +1,219 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Layout from '../components/Layout';
+import { toast } from 'sonner';
+import { Sparkles, Mail } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Card } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+const ThreadIntelligence = ({ user, onLogout }) => {
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  const [threadText, setThreadText] = useState('');
+  const [selectedAgent, setSelectedAgent] = useState('');
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
+  const fetchAgents = async () => {
+    try {
+      const response = await axios.get(`${API}/agents`);
+      setAgents(response.data);
+    } catch (error) {
+      toast.error('Failed to fetch agents');
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!threadText.trim()) {
+      toast.error('Please paste an email thread');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/thread/analyze`, {
+        thread_text: threadText,
+        agent_id: selectedAgent || null,
+      });
+      setAnalysis(response.data);
+      toast.success('Thread analyzed successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to analyze thread');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSentimentColor = (sentiment) => {
+    switch (sentiment.toLowerCase()) {
+      case 'positive':
+        return 'bg-green-100 text-green-700';
+      case 'negative':
+        return 'bg-red-100 text-red-700';
+      default:
+        return 'bg-slate-100 text-slate-700';
+    }
+  };
+
+  const getStageColor = (stage) => {
+    switch (stage.toLowerCase()) {
+      case 'hot':
+        return 'bg-red-100 text-red-700';
+      case 'warm':
+        return 'bg-yellow-100 text-yellow-700';
+      default:
+        return 'bg-blue-100 text-blue-700';
+    }
+  };
+
+  return (
+    <Layout user={user} onLogout={onLogout}>
+      <div className="p-8" data-testid="thread-intelligence-page">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Thread Intelligence</h1>
+            <p className="text-slate-600">Analyze email threads and generate contextual follow-ups</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-6 bg-white border border-slate-200 shadow-lg">
+              <h3 className="text-lg font-bold text-slate-900 mb-4">Paste Email Thread</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label>Email Thread Content *</Label>
+                  <Textarea
+                    data-testid="thread-input"
+                    value={threadText}
+                    onChange={(e) => setThreadText(e.target.value)}
+                    placeholder="Paste your email thread here...\n\nFrom: John Doe\nTo: Jane Smith\nSubject: Product Demo\n\nHi Jane,\n\nThank you for the demo..."
+                    rows={12}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>Select Agent (Optional)</Label>
+                  <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                    <SelectTrigger data-testid="agent-select">
+                      <SelectValue placeholder="Choose an agent for follow-up" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.agent_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={handleAnalyze}
+                  disabled={loading}
+                  data-testid="analyze-thread-button"
+                  className="w-full"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} className="mr-2" />
+                      Analyze Thread
+                    </>
+                  )}
+                </Button>
+              </div>
+            </Card>
+
+            <div className="space-y-6">
+              {analysis ? (
+                <>
+                  <Card className="p-6 bg-white border border-slate-200 shadow-lg">
+                    <h3 className="text-lg font-bold text-slate-900 mb-4">Analysis Results</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700 mb-2">Summary:</p>
+                        <p className="text-slate-800" data-testid="analysis-summary">{analysis.summary}</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700 mb-2">Stage:</p>
+                          <Badge className={getStageColor(analysis.detected_stage)} data-testid="analysis-stage">
+                            {analysis.detected_stage}
+                          </Badge>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700 mb-2">Sentiment:</p>
+                          <Badge className={getSentimentColor(analysis.sentiment)} data-testid="analysis-sentiment">
+                            {analysis.sentiment}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700 mb-2">Suggestions:</p>
+                        <ul className="space-y-2">
+                          {analysis.suggestions.map((suggestion, idx) => (
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-indigo-600 mt-1">•</span>
+                              <span className="text-sm text-slate-700">{suggestion}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {analysis.ai_followup && (
+                    <Card className="p-6 bg-white border border-slate-200 shadow-lg">
+                      <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <Mail className="text-indigo-600" />
+                        Suggested Follow-up
+                      </h3>
+                      <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <p className="text-slate-800 whitespace-pre-wrap" data-testid="followup-text">
+                          {analysis.ai_followup}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(analysis.ai_followup);
+                          toast.success('Follow-up copied to clipboard!');
+                        }}
+                        data-testid="copy-followup-button"
+                        variant="outline"
+                        className="w-full mt-4"
+                      >
+                        Copy Follow-up
+                      </Button>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <Card className="p-6 bg-white border border-slate-200 shadow-lg">
+                  <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                    <Mail className="w-20 h-20 text-slate-300 mb-4" />
+                    <h3 className="text-xl font-semibold text-slate-900 mb-2">No Analysis Yet</h3>
+                    <p className="text-slate-600">Paste an email thread and click analyze to see results</p>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+};
+
+export default ThreadIntelligence;
