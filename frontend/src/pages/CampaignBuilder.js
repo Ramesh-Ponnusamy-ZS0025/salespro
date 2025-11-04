@@ -63,6 +63,24 @@ const CampaignBuilder = ({ user, onLogout }) => {
     }
   };
 
+  const handleAgentSelect = (agentId) => {
+    const selectedAgent = agents.find(agent => agent.id === agentId);
+    if (selectedAgent) {
+      // Auto-fill form with agent's configuration
+      setFormData(prev => ({
+        ...prev,
+        agent_id: agentId,
+        service: selectedAgent.service || prev.service,
+        tone: selectedAgent.tone || prev.tone,
+        methodologies: selectedAgent.methodologies?.join(', ') || prev.methodologies,
+        icp: selectedAgent.personas?.join(', ') || prev.icp,
+      }));
+      toast.success(`Agent "${selectedAgent.agent_name}" configuration loaded!`);
+    } else {
+      setFormData(prev => ({ ...prev, agent_id: agentId }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
