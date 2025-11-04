@@ -169,11 +169,23 @@ const AgentBuilder = ({ user, onLogout }) => {
       sub_service: '',
       value_props: '',
       pain_points: '',
-      personas: '',
       tone: 'professional',
       methodologies: '',
       example_copies: '',
     });
+    setSelectedPersonas([]);
+  };
+
+  const togglePersona = (persona) => {
+    setSelectedPersonas(prev =>
+      prev.includes(persona)
+        ? prev.filter(p => p !== persona)
+        : [...prev, persona]
+    );
+  };
+
+  const removePersona = (persona) => {
+    setSelectedPersonas(prev => prev.filter(p => p !== persona));
   };
 
   return (
