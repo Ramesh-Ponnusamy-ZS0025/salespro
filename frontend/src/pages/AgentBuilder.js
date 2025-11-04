@@ -285,13 +285,45 @@ const AgentBuilder = ({ user, onLogout }) => {
                   />
                 </div>
                 <div>
-                  <Label>Target Personas (comma-separated) *</Label>
-                  <Input
-                    value={formData.personas}
-                    onChange={(e) => setFormData({ ...formData, personas: e.target.value })}
-                    placeholder="CTO, VP Engineering, IT Director"
-                    required
-                  />
+                  <Label>Target Personas (multi-select) *</Label>
+                  <div className="border border-slate-200 rounded-md p-3 bg-white">
+                    {selectedPersonas.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedPersonas.map((persona) => (
+                          <Badge
+                            key={persona}
+                            className="bg-indigo-100 text-indigo-700 flex items-center gap-1"
+                          >
+                            {persona}
+                            <X
+                              size={14}
+                              className="cursor-pointer hover:text-indigo-900"
+                              onClick={() => removePersona(persona)}
+                            />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    <Select onValueChange={togglePersona}>
+                      <SelectTrigger data-testid="personas-select">
+                        <SelectValue placeholder="Select target personas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PERSONAS.map((persona) => (
+                          <SelectItem 
+                            key={persona} 
+                            value={persona}
+                            disabled={selectedPersonas.includes(persona)}
+                          >
+                            {persona} {selectedPersonas.includes(persona) && '✓'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Selected: {selectedPersonas.length} persona(s)
+                  </p>
                 </div>
                 <div>
                   <Label>Tone *</Label>
