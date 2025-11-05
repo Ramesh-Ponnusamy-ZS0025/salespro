@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +18,9 @@ from docx import Document
 from docx.shared import Pt, Inches
 from io import BytesIO
 import base64
+from mailmerge import MailMerge
+import tempfile
+import shutil
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -173,17 +177,25 @@ class SenderProfileCreate(BaseModel):
     phone: Optional[str] = None
     signature_template: str
 
-class PersonalizationRequest(BaseModel):
-    origin_url: str
-    agent_id: str
-    sender_profile_id: str
-    keywords: List[str] = []
-    notes: Optional[str] = None
+# class PersonalizationRequest(BaseModel):
+#     origin_url: str
+#     agent_id: str
+#     sender_profile_id: str
+#     keywords: List[str] = []
+#     notes: Optional[str] = None
 
 class PersonalizationResponse(BaseModel):
     id: str
     message: str
     char_count: int
+
+class PersonalizationRequest(BaseModel):
+    origin_url: Optional[str] = None
+    keywords: Optional[List[str]] = []
+    notes: Optional[str] = None
+    tone: Optional[str] = Field(default="professional")
+    length: Optional[str] = Field(default="medium")
+    style: Optional[str] = Field(default="linkedin")
 
 class ThreadAnalyzeRequest(BaseModel):
     thread_text: str
@@ -202,9 +214,19 @@ class DocumentRequest(BaseModel):
     engagement_model: str  # t&m/dedicated/fixed_bid
     variables: Dict[str, Any]
 
+class MSADocumentRequest(BaseModel):
+    date: str
+    company_name: str
+    customer_company_address: str
+    point_of_contact: str
+    customer_company_name: str
+    title: str
+    name: str
+
 class DocumentResponse(BaseModel):
     id: str
     doc_url: str
+    pdf_url: str
     template_type: str
 
 class GTMRequest(BaseModel):
@@ -504,6 +526,47 @@ async def generate_campaign_copy(campaign_id: str, current_user: User = Depends(
     
     return {"content": ai_content}
 
+@api_router.put("/campaigns/{campaign_id}", response_model=Campaign)
+async def update_campaign(campaign_id: str, campaign_data: CampaignCreate, current_user: User = Depends(get_current_user)):
+    # Verify campaign exists and belongs to user
+    existing = await db.campaigns.find_one({"id": campaign_id, "created_by": current_user.id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Verify agent exists
+    agent = await db.agents.find_one({"id": campaign_data.agent_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    updated_data = campaign_data.model_dump()
+    updated_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.campaigns.update_one({"id": campaign_id}, {"$set": updated_data})
+    
+    updated_campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if isinstance(updated_campaign.get('created_at'), str):
+        updated_campaign['created_at'] = datetime.fromisoformat(updated_campaign['created_at'])
+    if isinstance(updated_campaign.get('updated_at'), str):
+        updated_campaign['updated_at'] = datetime.fromisoformat(updated_campaign['updated_at'])
+    return Campaign(**updated_campaign)
+
+@api_router.delete("/campaigns/{campaign_id}")
+async def delete_campaign(campaign_id: str, current_user: User = Depends(get_current_user)):
+    # Verify campaign exists and belongs to user
+    campaign = await db.campaigns.find_one({"id": campaign_id, "created_by": current_user.id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Delete campaign sequence first
+    await db.campaign_sequences.delete_many({"campaign_id": campaign_id})
+    
+    # Delete campaign
+    result = await db.campaigns.delete_one({"id": campaign_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    return {"message": "Campaign and associated sequences deleted successfully"}
+
 @api_router.put("/campaigns/{campaign_id}/status")
 async def update_campaign_status(campaign_id: str, status: str, current_user: User = Depends(get_current_user)):
     result = await db.campaigns.update_one(
@@ -670,6 +733,26 @@ async def update_step(campaign_id: str, step_number: int, step_update: SequenceS
     
     return {"message": "Step updated successfully"}
 
+@api_router.delete("/campaigns/{campaign_id}/sequence/steps/{step_number}")
+async def delete_step(campaign_id: str, step_number: int, current_user: User = Depends(get_current_user)):
+    sequence = await db.campaign_sequences.find_one({"campaign_id": campaign_id}, {"_id": 0})
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    
+    # Remove the step
+    updated_steps = [step for step in sequence['steps'] if step['step_number'] != step_number]
+    
+    # Renumber remaining steps
+    for idx, step in enumerate(updated_steps, 1):
+        step['step_number'] = idx
+    
+    await db.campaign_sequences.update_one(
+        {"campaign_id": campaign_id},
+        {"$set": {"steps": updated_steps, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Step deleted successfully", "steps": updated_steps}
+
 @api_router.put("/campaigns/{campaign_id}/sequence/reorder")
 async def reorder_sequence(campaign_id: str, step_order: List[int], current_user: User = Depends(get_current_user)):
     sequence = await db.campaign_sequences.find_one({"campaign_id": campaign_id}, {"_id": 0})
@@ -712,69 +795,70 @@ async def get_sender_profiles(current_user: User = Depends(get_current_user)):
             profile['created_at'] = datetime.fromisoformat(profile['created_at'])
     return profiles
 
+
 # ============== PERSONALIZATION ROUTES ==============
 
 @api_router.post("/personalize/generate", response_model=PersonalizationResponse)
 async def generate_personalization(request: PersonalizationRequest, current_user: User = Depends(get_current_user)):
-    # Get agent and sender profile
-    agent = await db.agents.find_one({"id": request.agent_id}, {"_id": 0})
-    sender = await db.sender_profiles.find_one({"id": request.sender_profile_id}, {"_id": 0})
-    
-    if not agent or not sender:
-        raise HTTPException(status_code=404, detail="Agent or Sender Profile not found")
-    
+    """
+    Simplified version: No agent or sender profile required.
+    Generates a personalized message purely from user inputs.
+    """
+
+    # Extract inputs safely
+    origin_url = request.origin_url or "custom_message"
     keywords_text = ", ".join(request.keywords) if request.keywords else "general outreach"
     notes_text = request.notes or ""
-    
-    prompt = f"""Generate a personalized 1:1 sales message with these details:
-    
-    Target URL/Context: {request.origin_url}
+    tone = getattr(request, "tone", "professional")
+    length = getattr(request, "length", "medium")
+    style = getattr(request, "style", "linkedin")
+
+    # Build the prompt
+    prompt = f"""Generate a personalized {style.replace('_', ' ')} message with the following context:
+
+    Target URL/Context: {origin_url}
     Keywords: {keywords_text}
-    Additional Notes: {notes_text}
-    
-    Agent Profile:
-    - Service: {agent['service']}
-    - Tone: {agent['tone']}
-    - Value Props: {', '.join(agent.get('value_props', []))}
-    
-    Sender Profile:
-    - Name: {sender['name']}
-    - Position: {sender['position']}
-    - Company: {sender['company']}
-    
+    Notes: {notes_text}
+    Desired tone: {tone}
+    Preferred length: {length}
+
     Requirements:
-    - Keep it under 500 characters
-    - Highly personalized and relevant
-    - Professional and engaging
+    - Keep it concise (under 500 characters)
+    - Make it engaging and relevant
     - Include a clear call-to-action
-    
-    Generate ONLY the message content, no additional formatting or explanation."""
-    
+    - Write only the message (no bullet points, no formatting)
+    """
+
+    # Generate message using your LLM helper
     message = await generate_llm_response(prompt)
     message = message.strip()
-    
-    # Save personalization
+
+    # Prepare record
     person_id = str(uuid.uuid4())
     personalization = {
         "id": person_id,
-        "origin_url": request.origin_url,
-        "agent_id": request.agent_id,
-        "sender_profile_id": request.sender_profile_id,
+        "origin_url": origin_url,
         "keywords": request.keywords,
         "notes": request.notes,
+        "tone": tone,
+        "length": length,
+        "style": style,
         "message": message,
         "char_count": len(message),
         "created_by": current_user.id,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    
+
+    # Save in DB
     await db.personalizations.insert_one(personalization)
-    
+
+    # Return API response
     return PersonalizationResponse(
         id=person_id,
         message=message,
-        char_count=len(message)
+        char_count=len(message),
     )
+
 
 # ============== THREAD INTELLIGENCE ROUTES ==============
 
@@ -973,6 +1057,128 @@ async def generate_document(request: DocumentRequest, current_user: User = Depen
 async def get_documents(current_user: User = Depends(get_current_user)):
     docs = await db.documents.find({"created_by": current_user.id}, {"_id": 0}).to_list(1000)
     return docs
+
+# ============== MSA DOCUMENT GENERATION WITH PDF ==============
+
+@api_router.post("/documents/msa/generate")
+async def generate_msa_document(request: MSADocumentRequest, current_user: User = Depends(get_current_user)):
+    """
+    Generate MSA document from template and convert to PDF
+    """
+    doc_id = str(uuid.uuid4())
+    
+    try:
+        # Path to template
+        template_path = ROOT_DIR.parent / "Zuci MSA Template.docx"
+        
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="MSA template not found")
+        
+        # Create temporary directory for file operations
+        temp_dir = Path(tempfile.mkdtemp())
+        
+        try:
+            # Fill template with mailmerge
+            filled_docx_path = temp_dir / f"MSA_{doc_id}.docx"
+            
+            # Open template and merge fields
+            document = MailMerge(str(template_path))
+            
+            # Prepare merge fields - match field names in your template
+            merge_fields = {
+                "date": request.date,
+                "company_name": request.company_name,
+                "customer_company_address": request.customer_company_address,
+                "point_of_contact": request.point_of_contact,
+                "customer_company_name": request.customer_company_name,
+                "title": request.title,
+                "name": request.name,
+            }
+            
+            # Merge and save
+            document.merge(**merge_fields)
+            document.write(str(filled_docx_path))
+            
+            # Convert to PDF
+            pdf_path = temp_dir / f"MSA_{doc_id}.pdf"
+            
+            # Try to convert to PDF (platform specific)
+            try:
+                # For Windows, use docx2pdf
+                from docx2pdf import convert
+                convert(str(filled_docx_path), str(pdf_path))
+                pdf_generated = True
+            except Exception as pdf_error:
+                logger.warning(f"PDF conversion failed: {pdf_error}. Will save only DOCX.")
+                pdf_generated = False
+            
+            # Read files and encode to base64
+            with open(filled_docx_path, 'rb') as f:
+                docx_content = f.read()
+                docx_base64 = base64.b64encode(docx_content).decode('utf-8')
+            
+            doc_url = f"data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{docx_base64}"
+            
+            if pdf_generated:
+                with open(pdf_path, 'rb') as f:
+                    pdf_content = f.read()
+                    pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+                pdf_url = f"data:application/pdf;base64,{pdf_base64}"
+            else:
+                pdf_url = None
+            
+            # Save document metadata to database
+            doc_record = {
+                "id": doc_id,
+                "template_type": "msa",
+                "engagement_model": "custom",
+                "variables": request.model_dump(),
+                "doc_url": "generated",
+                "pdf_url": "generated" if pdf_generated else None,
+                "status": "generated",
+                "created_by": current_user.id,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await db.documents.insert_one(doc_record)
+            
+            return {
+                "id": doc_id,
+                "doc_url": doc_url,
+                "pdf_url": pdf_url,
+                "template_type": "msa",
+                "message": "Document generated successfully" if pdf_generated else "Document generated (PDF conversion unavailable)"
+            }
+            
+        finally:
+            # Cleanup temp directory
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            
+    except Exception as e:
+        logger.error(f"Error generating MSA document: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate document: {str(e)}")
+
+@api_router.get("/documents/msa/preview")
+async def preview_msa_template(current_user: User = Depends(get_current_user)):
+    """
+    Get merge fields from MSA template
+    """
+    try:
+        template_path = ROOT_DIR.parent / "Zuci MSA Template.docx"
+        
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="MSA template not found")
+        
+        document = MailMerge(str(template_path))
+        merge_fields = document.get_merge_fields()
+        
+        return {
+            "merge_fields": list(merge_fields),
+            "template_name": "Zuci MSA Template.docx"
+        }
+    except Exception as e:
+        logger.error(f"Error reading template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to read template: {str(e)}")
 
 # ============== GTM GENERATOR ROUTES ==============
 

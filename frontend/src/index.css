@@ -113,3 +113,7 @@ code {
         border-bottom-color: inherit;
     }
 }
+/* Smooth reorder animation */
+.dragging {
+  transition: all 0.2s ease;
+}
