@@ -19,6 +19,8 @@ const DocumentGenerator = ({ user, onLogout }) => {
   const [templateType, setTemplateType] = useState('nda');
   const [engagementModel, setEngagementModel] = useState('t&m');
   const [variables, setVariables] = useState({});
+  const [pdfPreview, setPdfPreview] = useState(null);
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   useEffect(() => {
     fetchDocuments();
@@ -38,18 +40,39 @@ const DocumentGenerator = ({ user, onLogout }) => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API}/documents/generate`, {
-        template_type: templateType,
-        engagement_model: engagementModel,
-        variables,
-      });
+      let response;
       
-      const link = document.createElement('a');
-      link.href = response.data.doc_url;
-      link.download = `${templateType}_${Date.now()}.docx`;
-      link.click();
+      // Use new MSA endpoint for MSA documents
+      if (templateType === 'msa') {
+        response = await axios.post(`${API}/documents/msa/generate`, variables);
+      } else {
+        response = await axios.post(`${API}/documents/generate`, {
+          template_type: templateType,
+          engagement_model: engagementModel,
+          variables,
+        });
+      }
       
-      toast.success('Document generated successfully!');
+      // Download DOCX
+      const docxLink = document.createElement('a');
+      docxLink.href = response.data.doc_url;
+      docxLink.download = `${templateType}_${Date.now()}.docx`;
+      docxLink.click();
+      
+      // Download PDF if available and show preview
+      if (response.data.pdf_url) {
+        setPdfPreview(response.data.pdf_url);
+        setShowPdfModal(true);
+        
+        setTimeout(() => {
+          const pdfLink = document.createElement('a');
+          pdfLink.href = response.data.pdf_url;
+          pdfLink.download = `${templateType}_${Date.now()}.pdf`;
+          pdfLink.click();
+        }, 500);
+      }
+      
+      toast.success(response.data.message || 'Document generated successfully!');
       fetchDocuments();
       setVariables({});
     } catch (error) {
@@ -350,6 +373,46 @@ const DocumentGenerator = ({ user, onLogout }) => {
           </div>
         </div>
       </div>
+
+      {/* PDF Preview Modal */}
+      {showPdfModal && pdfPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-xl font-bold text-slate-900">Document Preview</h3>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = pdfPreview;
+                    link.download = `${templateType}_${Date.now()}.pdf`;
+                    link.click();
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download size={16} className="mr-2" />
+                  Download PDF
+                </Button>
+                <Button
+                  onClick={() => setShowPdfModal(false)}
+                  variant="outline"
+                  size="sm"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <iframe
+                src={pdfPreview}
+                className="w-full h-full"
+                title="PDF Preview"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
