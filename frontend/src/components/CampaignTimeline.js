@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import Layout from './Layout';
 import { toast } from 'sonner';
 import { ArrowLeft, Mail, MessageSquare, Phone, Sparkles, Copy, FileDown, Send, Edit2 } from 'lucide-react';
@@ -37,9 +36,7 @@ const CampaignTimeline = ({ campaign, user, onLogout, onBack }) => {
   const handleGenerateContent = async (stepNumber) => {
     setGeneratingStep(stepNumber);
     try {
-      const response = await axios.post(
-        `${API}/campaigns/${campaign.id}/sequence/steps/${stepNumber}/generate`
-      );
+      await axios.post(`${API}/campaigns/${campaign.id}/sequence/steps/${stepNumber}/generate`);
       toast.success('Content generated!');
       await fetchSequence();
     } catch (error) {
@@ -56,10 +53,9 @@ const CampaignTimeline = ({ campaign, user, onLogout, onBack }) => {
 
   const handleSaveEdit = async () => {
     try {
-      await axios.put(
-        `${API}/campaigns/${campaign.id}/sequence/steps/${editingStep.step_number}`,
-        { content: editContent }
-      );
+      await axios.put(`${API}/campaigns/${campaign.id}/sequence/steps/${editingStep.step_number}`, {
+        content: editContent
+      });
       toast.success('Content updated!');
       setEditingStep(null);
       await fetchSequence();
@@ -68,57 +64,25 @@ const CampaignTimeline = ({ campaign, user, onLogout, onBack }) => {
     }
   };
 
-  const handleDragEnd = async (result) => {
-    if (!result.destination) return;
-
-    const items = Array.from(sequence.steps);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    // Update local state immediately for smooth UX
-    setSequence({ ...sequence, steps: items });
-
-    // Send new order to backend
-    const newOrder = items.map(item => item.step_number);
-    try {
-      await axios.put(`${API}/campaigns/${campaign.id}/sequence/reorder`, newOrder);
-      toast.success('Sequence reordered!');
-      await fetchSequence();
-    } catch (error) {
-      toast.error('Failed to reorder sequence');
-      await fetchSequence(); // Revert on error
-    }
-  };
-
   const getChannelIcon = (channel) => {
     switch (channel) {
-      case 'email':
-        return <Mail className="text-white" size={20} />;
-      case 'linkedin':
-        return <MessageSquare className="text-white" size={20} />;
-      case 'voicemail':
-        return <Phone className="text-white" size={20} />;
-      default:
-        return <Mail className="text-white" size={20} />;
+      case 'email': return <Mail className="text-white" size={20} />;
+      case 'linkedin': return <MessageSquare className="text-white" size={20} />;
+      case 'voicemail': return <Phone className="text-white" size={20} />;
+      default: return <Mail className="text-white" size={20} />;
     }
   };
 
   const getChannelColor = (channel) => {
     switch (channel) {
-      case 'email':
-        return 'bg-blue-600';
-      case 'linkedin':
-        return 'bg-purple-600';
-      case 'voicemail':
-        return 'bg-green-600';
-      default:
-        return 'bg-slate-600';
+      case 'email': return 'bg-blue-600';
+      case 'linkedin': return 'bg-purple-600';
+      case 'voicemail': return 'bg-green-600';
+      default: return 'bg-slate-600';
     }
   };
 
-  const capitalizeFirst = (str) => {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
+  const capitalizeFirst = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
   if (loading) {
     return (
@@ -154,131 +118,84 @@ const CampaignTimeline = ({ campaign, user, onLogout, onBack }) => {
             </div>
           </div>
 
-          {/* Drag Instructions */}
-          <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-            <p className="text-sm text-indigo-900 font-medium">
-              💡 <strong>Tip:</strong> Drag items to reorder the sequence
-            </p>
-          </div>
-
-          {/* Timeline */}
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="timeline">
-              {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="space-y-4"
-                >
-                  {sequence?.steps?.map((step, index) => (
-                    <Draggable
-                      key={`step-${step.step_number}`}
-                      draggableId={`step-${step.step_number}`}
-                      index={index}
-                    >
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          className={`flex gap-4 ${
-                            snapshot.isDragging ? 'opacity-50' : ''
-                          }`}
-                        >
-                          {/* Icon Column */}
-                          <div className="flex flex-col items-center">
-                            <div
-                              className={`w-12 h-12 rounded-lg ${getChannelColor(
-                                step.channel
-                              )} flex items-center justify-center shadow-lg`}
-                            >
-                              {getChannelIcon(step.channel)}
-                            </div>
-                            {index < sequence.steps.length - 1 && (
-                              <div className="w-0.5 h-full bg-slate-200 my-2"></div>
-                            )}
-                          </div>
-
-                          {/* Content Column */}
-                          <Card className="flex-1 p-6 bg-white border border-slate-200 shadow-md hover:shadow-lg transition-shadow">
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-600 mb-1">
-                                  Day {step.day}
-                                </p>
-                                <h4 className="text-lg font-bold text-slate-900">
-                                  {capitalizeFirst(step.channel)}
-                                </h4>
-                              </div>
-                              <div className="flex gap-2">
-                                {step.content && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleEditContent(step)}
-                                  >
-                                    <Edit2 size={14} className="mr-1" /> Edit Draft
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleGenerateContent(step.step_number)}
-                                  disabled={generatingStep === step.step_number}
-                                >
-                                  {generatingStep === step.step_number ? (
-                                    <>
-                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600 mr-1"></div>
-                                      Generating...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles size={14} className="mr-1" />
-                                      {step.content ? 'Regenerate' : 'Generate'}
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
-
-                            {step.content ? (
-                              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                                <p className="text-sm text-slate-800 whitespace-pre-wrap">
-                                  {step.content}
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center">
-                                <p className="text-sm text-slate-500 italic">
-                                  Generating content with AI...
-                                </p>
-                              </div>
-                            )}
-
-                            {step.content && (
-                              <div className="flex gap-2 mt-4">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(step.content);
-                                    toast.success('Copied to clipboard!');
-                                  }}
-                                >
-                                  <Copy size={14} className="mr-1" /> Copy & Send
-                                </Button>
-                              </div>
-                            )}
-                          </Card>
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
+          {/* Timeline - Static List */}
+          <div className="space-y-4">
+            {sequence?.steps?.map((step, index) => (
+              <div key={`step-${step.step_number}`} className="flex gap-4">
+                {/* Icon Column */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-12 h-12 rounded-lg ${getChannelColor(step.channel)} flex items-center justify-center shadow-lg`}
+                  >
+                    {getChannelIcon(step.channel)}
+                  </div>
+                  {index < sequence.steps.length - 1 && (
+                    <div className="w-0.5 h-full bg-slate-200 my-2"></div>
+                  )}
                 </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+
+                {/* Content Column */}
+                <Card className="flex-1 p-6 bg-white border border-slate-200 shadow-md hover:shadow-lg transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 mb-1">Day {step.day}</p>
+                      <h4 className="text-lg font-bold text-slate-900">{capitalizeFirst(step.channel)}</h4>
+                    </div>
+                    <div className="flex gap-2">
+                      {step.content && (
+                        <Button size="sm" variant="outline" onClick={() => handleEditContent(step)}>
+                          <Edit2 size={14} className="mr-1" /> Edit Draft
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleGenerateContent(step.step_number)}
+                        disabled={generatingStep === step.step_number}
+                      >
+                        {generatingStep === step.step_number ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600 mr-1"></div>
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={14} className="mr-1" />
+                            {step.content ? 'Regenerate' : 'Generate'}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {step.content ? (
+                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-sm text-slate-800 whitespace-pre-wrap">{step.content}</p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center">
+                      <p className="text-sm text-slate-500 italic">No content generated yet.</p>
+                    </div>
+                  )}
+
+                  {step.content && (
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(step.content);
+                          toast.success('Copied to clipboard!');
+                        }}
+                      >
+                        <Copy size={14} className="mr-1" /> Copy & Send
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              </div>
+            ))}
+          </div>
 
           {/* Edit Dialog */}
           <Dialog open={!!editingStep} onOpenChange={() => setEditingStep(null)}>
@@ -296,12 +213,8 @@ const CampaignTimeline = ({ campaign, user, onLogout, onBack }) => {
                   className="font-mono text-sm"
                 />
                 <div className="flex gap-2">
-                  <Button onClick={handleSaveEdit} className="flex-1">
-                    Save Changes
-                  </Button>
-                  <Button variant="outline" onClick={() => setEditingStep(null)}>
-                    Cancel
-                  </Button>
+                  <Button onClick={handleSaveEdit} className="flex-1">Save Changes</Button>
+                  <Button variant="outline" onClick={() => setEditingStep(null)}>Cancel</Button>
                 </div>
               </div>
             </DialogContent>

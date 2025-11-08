@@ -79,6 +79,11 @@ cd frontend
 
 # Install dependencies
 yarn install
+npm install docx-preview --legacy-peer-deps
+
+#yarn add @dnd-kit/utilities
+#yarn add @dnd-kit/core@5.0.3 @dnd-kit/sortable@6.0.3 @dnd-kit/utilities@3.0.0
+
 
 # Configure .env
 cp .env.example .env
