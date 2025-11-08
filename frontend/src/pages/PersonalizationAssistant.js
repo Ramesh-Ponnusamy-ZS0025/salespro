@@ -35,9 +35,9 @@ const TONES = [
 ];
 
 const LENGTHS = [
-  { value: 'short', label: 'Short (50-100 words)' },
-  { value: 'medium', label: 'Medium (100-200 words)' },
-  { value: 'long', label: 'Long (200-300 words)' },
+  { value: 'Short (50-100 words)', label: 'Short (50-100 words)' },
+  { value: 'Medium (100-200 words)', label: 'Medium (100-200 words)' },
+  { value: 'Long (200-300 words)', label: 'Long (200-300 words)' },
 ];
 
 const STYLES = [
@@ -56,7 +56,7 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
   const [inputMode, setInputMode] = useState(INPUT_MODES.URL);
   const [customMessage, setCustomMessage] = useState('');
   const [tone, setTone] = useState('professional');
-  const [length, setLength] = useState('medium');
+  const [length, setLength] = useState('Medium (100-200 words)');
   const [style, setStyle] = useState('linkedin');
 
   // Generated message state

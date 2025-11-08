@@ -117,3 +117,8 @@ code {
 .dragging {
   transition: all 0.2s ease;
 }
+
+.docx-container {
+  width: 100%;
+  min-height: 100%;
+}
