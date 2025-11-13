@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "docx-preview": "^0.3.7",
+    "install": "^0.13.0",
+    "mammoth": "^1.11.0",
+    "npm": "^11.6.2",
+    "react-datepicker": "^8.8.0"
+  }
+}
