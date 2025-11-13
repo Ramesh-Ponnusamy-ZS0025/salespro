@@ -15,6 +15,7 @@ import DocumentGenerator from './pages/DocumentGenerator';
 import GTMGenerator from './pages/GTMGenerator';
 import LearningHub from './pages/LearningHub';
 import SavedItems from './pages/SavedItems';
+import DocumentManagement from './pages/DocumentManagement';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -171,6 +172,16 @@ function App() {
           element={
             isAuthenticated ? (
               <SavedItems user={user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/auth" replace />
+            )
+          }
+        />
+        <Route
+          path="/document-management"
+          element={
+            isAuthenticated ? (
+              <DocumentManagement user={user} onLogout={handleLogout} />
             ) : (
               <Navigate to="/auth" replace />
             )

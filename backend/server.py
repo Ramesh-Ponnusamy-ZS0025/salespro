@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -21,6 +21,9 @@ import base64
 from mailmerge import MailMerge
 import tempfile
 import shutil
+from cloud_storage import CloudStorageClient, CloudStorageService
+from microsoft_oauth import get_oauth_client, oauth_state_manager
+from oauth_config_helper import check_oauth_config
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -39,7 +42,7 @@ JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 
 # LLM Config
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 app = FastAPI()
@@ -266,6 +269,59 @@ class GTMFeedbackRequest(BaseModel):
 class GTMFinalPromptRequest(BaseModel):
     form_data: Dict[str, Any]
     validation_result: Dict[str, Any]
+
+class DocumentFile(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    filename: str
+    category: str  # Healthcare, Finance, etc.
+    doc_type: str  # Case Study, Architecture, Use Case, Design, Figma, Workflow
+    file_content: str  # base64 encoded
+    file_size: int
+    mime_type: str
+    uploaded_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DocumentFileUpload(BaseModel):
+    filename: str
+    category: str
+    doc_type: str
+    file_content: str  # base64
+    mime_type: str
+    file_size: int
+
+class CloudStorageConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    storage_type: str  # 'onedrive' or 'sharepoint'
+    access_token: str
+    refresh_token: Optional[str] = None
+    token_expires_at: Optional[datetime] = None
+    drive_id: Optional[str] = None
+    drive_name: Optional[str] = None
+    folder_path: str = "/"
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CloudStorageConfigCreate(BaseModel):
+    storage_type: str
+    access_token: str
+    refresh_token: Optional[str] = None
+    token_expires_at: Optional[str] = None
+    drive_id: Optional[str] = None
+    drive_name: Optional[str] = None
+    folder_path: str = "/"
+
+class CloudStorageConfigUpdate(BaseModel):
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_expires_at: Optional[str] = None
+    drive_id: Optional[str] = None
+    folder_path: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class GTMResponse(BaseModel):
     id: str
@@ -1387,42 +1443,113 @@ Format: Simple bullet points, each under 15 words.
 @api_router.post("/gtm/process-feedback")
 async def process_gtm_feedback(request: GTMFeedbackRequest, current_user: User = Depends(get_current_user)):
     """
-    Process user feedback and adjust validation
+    Process user feedback and adjust validation - Interactive like Claude
     """
-    feedback = request.feedback.lower()
+    feedback = request.feedback.strip()
+    feedback_lower = feedback.lower()
+    form_data = request.form_data
+    validation = request.validation_result
     
-    # Analyze feedback intent
-    prompt = f"""
-User feedback on GTM validation: "{request.feedback}"
+    # Direct keyword matching for common actions
+    generate_keywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt']
+    adjustment_keywords = ['add', 'change', 'modify', 'update', 'include', 'ceo', 'details', '2', 'adjust']
+    detail_keywords = ['more details', 'tell me', 'explain', '3', 'add more']
+    
+    # Check for generate action
+    if any(keyword in feedback_lower for keyword in generate_keywords):
+        return {
+            "action": "generate",
+            "message": "Perfect! Generating your comprehensive microsite prompt now... 🚀",
+            "updated_validation": validation,
+            "should_regenerate": True
+        }
+    
+    # Check for adjustment request
+    if any(keyword in feedback_lower for keyword in adjustment_keywords):
+        # Extract what they want to adjust using AI
+        adjustment_prompt = f"""
+The user wants to make adjustments. They said: "{feedback}"
 
-Analyze intent and respond:
-- If asking for changes/adjustments: respond with "action: regenerate" and explain what you'll adjust
-- If asking questions: respond with "action: clarify" and provide helpful explanation
-- If confirming/approving: respond with "action: proceed" and encourage them
+Company: {form_data.get('company_name', 'N/A')}
+Industry: {form_data.get('industry', 'N/A')}
 
-Keep response under 50 words. Be conversational and helpful.
+Respond naturally asking them to specify EXACTLY what they want to add or change.
+Be specific and helpful. Keep it under 50 words.
+Example: "I'd be happy to add that! Could you tell me specifically what CEO information you'd like on the home page? For example: CEO name, photo, title, or a specific message?"
+"""
+        try:
+            ai_response = await generate_llm_response(adjustment_prompt)
+            return {
+                "action": "update",
+                "message": ai_response.strip(),
+                "updated_validation": validation,
+                "should_regenerate": False
+            }
+        except:
+            return {
+                "action": "update",
+                "message": "I'd be happy to help with that! Could you provide more specific details about what you'd like to add or change? For example, specific sections, content, or design elements?",
+                "updated_validation": validation,
+                "should_regenerate": False
+            }
+    
+    # Check for details request
+    if any(keyword in feedback_lower for keyword in detail_keywords):
+        return {
+            "action": "clarify",
+            "message": f"Of course! For the {form_data.get('industry', 'your')} industry microsite, I can add details like:\n\n• Specific metrics and ROI data\n• Industry case studies\n• Technical specifications\n• Integration capabilities\n• Security certifications\n\nWhich of these would you like me to emphasize, or is there something else specific you'd like to add?",
+            "updated_validation": validation,
+            "should_regenerate": False
+        }
+    
+    # For everything else, use AI to understand and respond
+    context_prompt = f"""
+You are helping create a microsite prompt. The user just said:
+
+"{feedback}"
+
+Context:
+- Company: {form_data.get('company_name', 'N/A')}
+- Industry: {form_data.get('industry', 'N/A')}
+- Offering: {form_data.get('offering', 'N/A')[:100]}...
+
+Respond naturally and helpfully. If they're providing specific information (like CEO details, company info, etc.), acknowledge it and ask if they want to generate the prompt with these additions.
+
+If you're not sure what they want, ask a clarifying question.
+
+Be conversational and specific. Keep response under 80 words.
 """
     
     try:
-        ai_response = await generate_llm_response(prompt)
+        ai_response = await generate_llm_response(context_prompt)
         
-        # Determine action based on keywords
-        if any(word in feedback for word in ['change', 'adjust', 'modify', 'different', 'instead']):
-            action = 'regenerate'
-        elif any(word in feedback for word in ['what', 'how', 'why', 'explain', '?']):
-            action = 'clarify'
+        # Check if user provided actual content/details in their message
+        has_content = len(feedback.split()) > 5 and not any(q in feedback_lower for q in ['what', 'how', 'why', '?'])
+        
+        if has_content:
+            # User provided details, ask if ready to generate
+            response_msg = ai_response.strip() + "\n\nWould you like me to generate the prompt with these details now?"
+            return {
+                "action": "update",
+                "message": response_msg,
+                "updated_validation": validation,
+                "should_regenerate": False
+            }
         else:
-            action = 'proceed'
-        
-        return {
-            "action": action,
-            "message": ai_response,
-            "updated_validation": request.validation_result
-        }
-    except:
+            return {
+                "action": "clarify",
+                "message": ai_response.strip(),
+                "updated_validation": validation,
+                "should_regenerate": False
+            }
+            
+    except Exception as e:
+        logger.error(f"Error processing feedback: {str(e)}")
         return {
             "action": "clarify",
-            "message": "I understand. Could you provide more specific details about what you'd like to adjust?"
+            "message": "I want to make sure I understand correctly. Could you rephrase what you'd like me to do? For example:\n\n• Generate the prompt as-is\n• Add specific details (tell me what)\n• Make changes (tell me what to change)",
+            "updated_validation": validation,
+            "should_regenerate": False
         }
 
 @api_router.post("/gtm/generate-final-prompt")
@@ -1750,6 +1877,635 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
         "documents_count": documents_count,
         "recent_campaigns": recent_campaigns
     }
+
+
+# ============== DOCUMENT MANAGEMENT ROUTES ==============
+
+@api_router.post("/document-files/upload")
+async def upload_document_file(doc_data: DocumentFileUpload, current_user: User = Depends(get_current_user)):
+    """
+    Upload a document file to the Document Management system
+    """
+    doc_file = DocumentFile(
+        **doc_data.model_dump(),
+        uploaded_by=current_user.id
+    )
+    
+    doc = doc_file.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    doc['updated_at'] = doc['updated_at'].isoformat()
+    
+    await db.document_files.insert_one(doc)
+    
+    return {
+        "id": doc_file.id,
+        "message": "Document uploaded successfully",
+        "filename": doc_file.filename
+    }
+
+@api_router.get("/document-files")
+async def get_document_files(current_user: User = Depends(get_current_user)):
+    """
+    Get all document files for the current user, grouped by category and type
+    """
+    documents = await db.document_files.find(
+        {"uploaded_by": current_user.id},
+        {"_id": 0, "file_content": 0}  # Exclude file_content for list view
+    ).to_list(1000)
+    
+    for doc in documents:
+        if isinstance(doc.get('created_at'), str):
+            doc['created_at'] = datetime.fromisoformat(doc['created_at'])
+        if isinstance(doc.get('updated_at'), str):
+            doc['updated_at'] = datetime.fromisoformat(doc['updated_at'])
+    
+    # Group by category and type
+    grouped = {}
+    for doc in documents:
+        category = doc['category']
+        doc_type = doc['doc_type']
+        
+        if category not in grouped:
+            grouped[category] = {}
+        if doc_type not in grouped[category]:
+            grouped[category][doc_type] = []
+        
+        grouped[category][doc_type].append(doc)
+    
+    return {
+        "documents": documents,
+        "grouped": grouped,
+        "total": len(documents)
+    }
+
+@api_router.get("/document-files/{doc_id}")
+async def get_document_file(doc_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Get a specific document file with full content
+    """
+    doc = await db.document_files.find_one(
+        {"id": doc_id, "uploaded_by": current_user.id},
+        {"_id": 0}
+    )
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if isinstance(doc.get('created_at'), str):
+        doc['created_at'] = datetime.fromisoformat(doc['created_at'])
+    if isinstance(doc.get('updated_at'), str):
+        doc['updated_at'] = datetime.fromisoformat(doc['updated_at'])
+    
+    return doc
+
+@api_router.put("/document-files/{doc_id}")
+async def update_document_file(doc_id: str, update_data: Dict[str, Any], current_user: User = Depends(get_current_user)):
+    """
+    Update document metadata (category, type, filename)
+    """
+    existing = await db.document_files.find_one(
+        {"id": doc_id, "uploaded_by": current_user.id},
+        {"_id": 0}
+    )
+    
+    if not existing:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Only allow updating certain fields
+    allowed_fields = ['filename', 'category', 'doc_type']
+    update_payload = {k: v for k, v in update_data.items() if k in allowed_fields}
+    update_payload['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.document_files.update_one(
+        {"id": doc_id},
+        {"$set": update_payload}
+    )
+    
+    return {"message": "Document updated successfully"}
+
+@api_router.delete("/document-files/{doc_id}")
+async def delete_document_file(doc_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Delete a document file
+    """
+    result = await db.document_files.delete_one(
+        {"id": doc_id, "uploaded_by": current_user.id}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return {"message": "Document deleted successfully"}
+
+@api_router.get("/document-files/categories/list")
+async def get_document_categories(current_user: User = Depends(get_current_user)):
+    """
+    Get list of all unique categories and types
+    """
+    documents = await db.document_files.find(
+        {"uploaded_by": current_user.id},
+        {"_id": 0, "category": 1, "doc_type": 1}
+    ).to_list(1000)
+    
+    categories = list(set(doc['category'] for doc in documents))
+    doc_types = list(set(doc['doc_type'] for doc in documents))
+    
+    return {
+        "categories": sorted(categories),
+        "doc_types": sorted(doc_types)
+    }
+
+# ============== CLOUD STORAGE ROUTES ==============
+
+@api_router.get("/cloud-storage/oauth/status")
+async def check_oauth_status():
+    """
+    Check if OAuth is properly configured
+    Returns configuration status and setup instructions if needed
+    """
+    return check_oauth_config()
+
+@api_router.get("/cloud-storage/oauth/authorize")
+async def start_oauth_flow(current_user: User = Depends(get_current_user)):
+    """
+    Start OAuth flow for Microsoft OneDrive/SharePoint
+    Returns authorization URL for frontend to redirect user to
+    """
+    try:
+        oauth_client = get_oauth_client()
+        
+        # Create state token for CSRF protection
+        state = oauth_state_manager.create_state(current_user.id)
+        
+        # Get authorization URL
+        auth_url = oauth_client.get_authorization_url(state)
+        
+        return {
+            "authorization_url": auth_url,
+            "state": state
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error starting OAuth flow: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to start authentication")
+
+@api_router.get("/cloud-storage/oauth/callback", response_class=HTMLResponse)
+async def oauth_callback(code: str, state: str):
+    """
+    OAuth callback endpoint - handles the redirect from Microsoft
+    Exchanges authorization code for access token
+    """
+    try:
+        # Validate state token
+        user_id = oauth_state_manager.validate_state(state)
+        if not user_id:
+            raise HTTPException(status_code=400, detail="Invalid or expired state token")
+        
+        # Exchange code for token
+        oauth_client = get_oauth_client()
+        token_data = await oauth_client.exchange_code_for_token(code)
+        
+        # Get user info from Microsoft
+        user_info = await oauth_client.get_user_info(token_data["access_token"])
+        
+        # Check if config already exists
+        existing = await db.cloud_storage_configs.find_one(
+            {"user_id": user_id, "is_active": True},
+            {"_id": 0}
+        )
+        
+        if existing:
+            # Deactivate existing config
+            await db.cloud_storage_configs.update_one(
+                {"id": existing["id"]},
+                {"$set": {"is_active": False}}
+            )
+        
+        # Create new config
+        config = CloudStorageConfig(
+            user_id=user_id,
+            storage_type="onedrive",
+            access_token=token_data["access_token"],
+            refresh_token=token_data.get("refresh_token"),
+            token_expires_at=datetime.fromisoformat(token_data["expires_at"]),
+            folder_path="/"
+        )
+        
+        doc = config.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        doc['updated_at'] = doc['updated_at'].isoformat()
+        if doc.get('token_expires_at'):
+            doc['token_expires_at'] = doc['token_expires_at'].isoformat()
+        
+        await db.cloud_storage_configs.insert_one(doc)
+        
+        # Return HTML page that closes the popup and notifies parent
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Successful</title>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                }}
+                .container {{
+                    background: white;
+                    padding: 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    text-align: center;
+                    max-width: 400px;
+                }}
+                .success-icon {{
+                    width: 80px;
+                    height: 80px;
+                    background: #10b981;
+                    border-radius: 50%;
+                    margin: 0 auto 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 40px;
+                }}
+                h1 {{
+                    color: #1f2937;
+                    margin: 0 0 10px 0;
+                    font-size: 24px;
+                }}
+                p {{
+                    color: #6b7280;
+                    margin: 0;
+                }}
+                .user-info {{
+                    margin-top: 20px;
+                    padding: 15px;
+                    background: #f3f4f6;
+                    border-radius: 10px;
+                }}
+                .user-name {{
+                    font-weight: 600;
+                    color: #4b5563;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="success-icon">✓</div>
+                <h1>Connected Successfully!</h1>
+                <p>Your Microsoft account has been connected.</p>
+                <div class="user-info">
+                    <div class="user-name">{user_info.get('displayName', 'User')}</div>
+                    <div style="color: #9ca3af; font-size: 14px;">{user_info.get('userPrincipalName', '')}</div>
+                </div>
+                <p style="margin-top: 20px; font-size: 14px;">This window will close automatically...</p>
+            </div>
+            <script>
+            console.log('OAuth callback page loaded');
+            console.log('window.opener exists:', !!window.opener);
+            console.log('window.location.origin:', window.location.origin);
+            
+            // Notify parent window
+            if (window.opener) {{
+            console.log('Sending message to parent window');
+            const message = {{
+            type: 'oauth_success',
+                config_id: '{config.id}',
+                    user_info: {{
+                        name: '{user_info.get('displayName', '')}',
+                        email: '{user_info.get('userPrincipalName', '')}'
+                    }}
+            }};
+                
+                    console.log('Message:', message);
+                    
+                    // Try sending to specific origin first
+                    try {{
+                        window.opener.postMessage(message, 'http://localhost:3000');
+                        console.log('Message sent to localhost:3000');
+                    }} catch (e) {{
+                        console.error('Failed to send message:', e);
+                    }}
+                    
+                    // Also try with current origin as fallback
+                    try {{
+                        window.opener.postMessage(message, window.location.origin);
+                        console.log('Message sent to', window.location.origin);
+                    }} catch (e) {{
+                        console.error('Failed to send message to origin:', e);
+                    }}
+                }} else {{
+                    console.error('window.opener is null - popup may have been opened incorrectly');
+                }}
+                
+                // Close window after 3 seconds (increased time for debugging)
+                setTimeout(() => {{
+                    console.log('Attempting to close window');
+                    window.close();
+                }}, 3000);
+            </script>
+        </body>
+        </html>
+        """
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"OAuth callback error: {str(e)}")
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Failed</title>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                }}
+                .container {{
+                    background: white;
+                    padding: 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    text-align: center;
+                    max-width: 400px;
+                }}
+                .error-icon {{
+                    width: 80px;
+                    height: 80px;
+                    background: #ef4444;
+                    border-radius: 50%;
+                    margin: 0 auto 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 40px;
+                    color: white;
+                }}
+                h1 {{
+                    color: #1f2937;
+                    margin: 0 0 10px 0;
+                }}
+                p {{
+                    color: #6b7280;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="error-icon">✗</div>
+                <h1>Authentication Failed</h1>
+                <p>Please try again or contact support.</p>
+                <p style="margin-top: 20px; font-size: 14px;">This window will close automatically...</p>
+            </div>
+            <script>
+                setTimeout(() => window.close(), 3000);
+            </script>
+        </body>
+        </html>
+        """
+
+@api_router.post("/cloud-storage/config")
+async def create_cloud_config(
+    config_data: CloudStorageConfigCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Save cloud storage configuration"""
+    try:
+        # Test connection first
+        client = CloudStorageClient(config_data.access_token)
+        test_result = await client.test_connection()
+        
+        if not test_result.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to connect: {test_result.get('error')}"
+            )
+        
+        # Check if config already exists
+        existing = await db.cloud_storage_configs.find_one(
+            {"user_id": current_user.id, "is_active": True},
+            {"_id": 0}
+        )
+        
+        if existing:
+            # Deactivate existing config
+            await db.cloud_storage_configs.update_one(
+                {"id": existing["id"]},
+                {"$set": {"is_active": False}}
+            )
+        
+        # Create new config
+        config = CloudStorageConfig(
+            **config_data.model_dump(),
+            user_id=current_user.id
+        )
+        
+        doc = config.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        doc['updated_at'] = doc['updated_at'].isoformat()
+        if doc.get('token_expires_at'):
+            doc['token_expires_at'] = doc['token_expires_at'].isoformat()
+        
+        await db.cloud_storage_configs.insert_one(doc)
+        
+        return {
+            "id": config.id,
+            "message": "Cloud storage connected successfully",
+            "user_info": test_result.get("user", {})
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create cloud config: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/cloud-storage/config")
+async def get_cloud_config(current_user: User = Depends(get_current_user)):
+    """Get active cloud storage configuration"""
+    config = await db.cloud_storage_configs.find_one(
+        {"user_id": current_user.id, "is_active": True},
+        {"_id": 0, "access_token": 0, "refresh_token": 0}  # Don't send tokens to frontend
+    )
+    
+    if not config:
+        return {"configured": False}
+    
+    return {
+        "configured": True,
+        "config": config
+    }
+
+@api_router.put("/cloud-storage/config/{config_id}")
+async def update_cloud_config(
+    config_id: str,
+    config_update: CloudStorageConfigUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update cloud storage configuration"""
+    existing = await db.cloud_storage_configs.find_one(
+        {"id": config_id, "user_id": current_user.id},
+        {"_id": 0}
+    )
+    
+    if not existing:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    
+    update_data = config_update.model_dump(exclude_unset=True)
+    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.cloud_storage_configs.update_one(
+        {"id": config_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Configuration updated successfully"}
+
+@api_router.delete("/cloud-storage/config/{config_id}")
+async def delete_cloud_config(
+    config_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete cloud storage configuration"""
+    result = await db.cloud_storage_configs.delete_one(
+        {"id": config_id, "user_id": current_user.id}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    
+    return {"message": "Configuration deleted successfully"}
+
+@api_router.get("/cloud-storage/drives")
+async def list_drives(current_user: User = Depends(get_current_user)):
+    """List available drives (OneDrive/SharePoint)"""
+    config = await db.cloud_storage_configs.find_one(
+        {"user_id": current_user.id, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not config:
+        raise HTTPException(status_code=404, detail="No cloud storage configured")
+    
+    try:
+        client = CloudStorageClient(config['access_token'])
+        drives = await client.list_drives()
+        return {"drives": drives}
+    except Exception as e:
+        logger.error(f"Failed to list drives: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/cloud-storage/files")
+async def list_files(
+    drive_id: Optional[str] = None,
+    folder_path: str = "/",
+    current_user: User = Depends(get_current_user)
+):
+    """List files in cloud storage"""
+    config = await db.cloud_storage_configs.find_one(
+        {"user_id": current_user.id, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not config:
+        raise HTTPException(status_code=404, detail="No cloud storage configured")
+    
+    # Use provided drive_id or config's drive_id
+    target_drive_id = drive_id or config.get('drive_id')
+    if not target_drive_id:
+        raise HTTPException(status_code=400, detail="Drive ID not specified")
+    
+    try:
+        client = CloudStorageClient(config['access_token'])
+        files = await client.list_files(target_drive_id, folder_path)
+        return {"files": files}
+    except Exception as e:
+        logger.error(f"Failed to list files: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/cloud-storage/files/by-category")
+async def get_files_by_category(
+    category: str,
+    drive_id: Optional[str] = None,
+    folder_path: str = "/",
+    current_user: User = Depends(get_current_user)
+):
+    """Get files filtered by case study category"""
+    config = await db.cloud_storage_configs.find_one(
+        {"user_id": current_user.id, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not config:
+        raise HTTPException(status_code=404, detail="No cloud storage configured")
+    
+    target_drive_id = drive_id or config.get('drive_id')
+    if not target_drive_id:
+        raise HTTPException(status_code=400, detail="Drive ID not specified")
+    
+    try:
+        files = await CloudStorageService.get_case_study_files(
+            config['access_token'],
+            target_drive_id,
+            category,
+            folder_path or config.get('folder_path', '/')
+        )
+        return {"files": files, "category": category, "count": len(files)}
+    except Exception as e:
+        logger.error(f"Failed to get files by category: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/cloud-storage/file/{item_id}")
+async def get_file(
+    item_id: str,
+    drive_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Download file from cloud storage"""
+    config = await db.cloud_storage_configs.find_one(
+        {"user_id": current_user.id, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not config:
+        raise HTTPException(status_code=404, detail="No cloud storage configured")
+    
+    target_drive_id = drive_id or config.get('drive_id')
+    if not target_drive_id:
+        raise HTTPException(status_code=400, detail="Drive ID not specified")
+    
+    try:
+        file_data = await CloudStorageService.download_and_analyze_file(
+            config['access_token'],
+            target_drive_id,
+            item_id
+        )
+        
+        # Convert content to base64 for JSON response
+        content_base64 = base64.b64encode(file_data['content']).decode('utf-8')
+        
+        return {
+            "metadata": file_data['metadata'],
+            "content": content_base64,
+            "size": file_data['size']
+        }
+    except Exception as e:
+        logger.error(f"Failed to get file: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Include router and middleware
 app.include_router(api_router)
