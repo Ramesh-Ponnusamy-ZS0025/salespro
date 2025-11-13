@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Microsoft Authentication</title>
+</head>
+<body>
+    <script>
+        // Extract access token from URL hash
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        
+        if (accessToken) {
+            // Send token to parent window
+            window.opener.postMessage({
+                access_token: accessToken
+            }, window.location.origin);
+            
+            // Show success message
+            document.body.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: Arial; flex-direction: column;"><h2 style="color: green;">✓ Authentication Successful</h2><p>You can close this window now.</p></div>';
+            
+            // Auto close after 2 seconds
+            setTimeout(() => window.close(), 2000);
+        } else {
+            document.body.innerHTML = '<div style="display: flex; align-items: center; justify-center: center; height: 100vh; font-family: Arial; flex-direction: column;"><h2 style="color: red;">✗ Authentication Failed</h2><p>Please try again.</p></div>';
+        }
+    </script>
+</body>
+</html>
