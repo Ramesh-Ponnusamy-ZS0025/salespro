@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Layout from '../components/Layout';
 import { toast } from 'sonner';
-import { Sparkles, Mail, FileText, Check } from 'lucide-react';
+import { Sparkles, Mail, FileText, Check, Cloud, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
@@ -18,19 +18,75 @@ const API = `${BACKEND_URL}/api`;
 
 const ThreadIntelligence = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(false);
+  const [loadingFiles, setLoadingFiles] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [threadText, setThreadText] = useState('');
   const [customInputs, setCustomInputs] = useState('');
   const [selectedCaseStudy, setSelectedCaseStudy] = useState('');
+  const [cloudConfigured, setCloudConfigured] = useState(false);
+  const [cloudFiles, setCloudFiles] = useState([]);
 
-  // Same case studies as before
-  const caseStudies = [
-    { id: '1', title: 'Enterprise Cloud Migration Success', industry: 'Technology' },
-    { id: '2', title: 'AI Implementation for Healthcare', industry: 'Healthcare' },
-    { id: '3', title: 'Digital Transformation in Finance', industry: 'Finance' },
-    { id: '4', title: 'DevOps Automation Case Study', industry: 'Technology' },
-    { id: '5', title: 'Quality Engineering Excellence', industry: 'Manufacturing' },
+  // Case study categories that match folders in cloud storage
+  const caseStudyCategories = [
+    { id: 'technology', title: 'Technology', industry: 'Technology' },
+    { id: 'healthcare', title: 'Healthcare', industry: 'Healthcare' },
+    { id: 'finance', title: 'Finance', industry: 'Finance' },
+    { id: 'manufacturing', title: 'Manufacturing', industry: 'Manufacturing' },
+    { id: 'retail', title: 'Retail', industry: 'Retail' },
   ];
+
+  useEffect(() => {
+    checkCloudConfig();
+  }, []);
+
+  const checkCloudConfig = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API}/cloud-storage/config`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCloudConfigured(response.data.configured);
+    } catch (error) {
+      console.error('Failed to check cloud config:', error);
+    }
+  };
+
+  const fetchCloudFiles = async (category) => {
+    if (!cloudConfigured) {
+      toast.error('Please configure cloud storage in Settings first');
+      return;
+    }
+
+    setLoadingFiles(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `${API}/cloud-storage/files/by-category?category=${category}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      setCloudFiles(response.data.files || []);
+      
+      if (response.data.files.length === 0) {
+        toast.info(`No files found in ${category} category`);
+      } else {
+        toast.success(`Found ${response.data.files.length} files`);
+      }
+    } catch (error) {
+      toast.error('Failed to fetch files from cloud storage');
+      console.error(error);
+    } finally {
+      setLoadingFiles(false);
+    }
+  };
+
+  const handleCategorySelect = async (categoryId) => {
+    setSelectedCaseStudy(categoryId);
+    // Fetch files from cloud storage for this category
+    await fetchCloudFiles(categoryId);
+  };
 
   const handleAnalyze = async () => {
     if (!threadText.trim()) {
@@ -90,16 +146,38 @@ const ThreadIntelligence = ({ user, onLogout }) => {
 
         {/* Header */}
         <div className="px-8 pt-6 pb-4 border-b border-slate-200 bg-white">
-          <h1 className="text-3xl font-bold text-slate-900 mb-1">Thread Intelligence</h1>
-          <p className="text-slate-600">
-            Analyze email threads and generate contextual follow-ups
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-1">Thread Intelligence</h1>
+              <p className="text-slate-600">
+                Analyze email threads and generate contextual follow-ups
+              </p>
+            </div>
+            
+            {/* Cloud Status */}
+            <div className="flex items-center gap-2">
+              {cloudConfigured ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                  <Cloud className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-700 font-medium">Cloud Connected</span>
+                </div>
+              ) : (
+                <a
+                  href="/settings"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100"
+                >
+                  <Cloud className="w-4 h-4 text-orange-600" />
+                  <span className="text-sm text-orange-700 font-medium">Configure Cloud</span>
+                </a>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* New Beautiful Split Layout */}
+        {/* Split Layout */}
         <ResizablePanelGroup direction="horizontal" className="h-[calc(100%-120px)]">
 
-          {/* LEFT PANEL — Your ORIGINAL input UI lives here */}
+          {/* LEFT PANEL */}
           <ResizablePanel defaultSize={40} minSize={30}>
             <div className="h-full overflow-y-auto p-8 bg-slate-50 space-y-6">
 
@@ -126,34 +204,69 @@ const ThreadIntelligence = ({ user, onLogout }) => {
                 />
               </Card>
 
-              {/* CASE STUDIES — Kept exactly as before */}
+              {/* CASE STUDY CATEGORIES - Cloud Integrated */}
               <Card className="p-6 bg-white">
-                <Label>Select Relevant Case Study</Label>
+                <div className="flex items-center justify-between mb-3">
+                  <Label>Select Relevant Case Study</Label>
+                  {cloudConfigured && (
+                    <Cloud className="w-4 h-4 text-blue-600" />
+                  )}
+                </div>
+                
                 <div className="border border-slate-200 rounded-md p-3 bg-white max-h-48 overflow-y-auto">
-                  {caseStudies.map((cs) => (
+                  {caseStudyCategories.map((category) => (
                     <div
-                      key={cs.id}
-                      onClick={() => setSelectedCaseStudy(cs.id)}
+                      key={category.id}
+                      onClick={() => handleCategorySelect(category.id)}
                       className={`p-3 mb-2 rounded-lg border-2 cursor-pointer transition-all ${
-                        selectedCaseStudy === cs.id
+                        selectedCaseStudy === category.id
                           ? 'border-indigo-600 bg-indigo-50'
                           : 'border-slate-200 hover:border-indigo-300'
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <p className="font-semibold text-sm text-slate-900">{cs.title}</p>
-                          <p className="text-xs text-slate-600 mt-1">{cs.industry}</p>
+                          <p className="font-semibold text-sm text-slate-900">{category.title}</p>
+                          <p className="text-xs text-slate-600 mt-1">{category.industry}</p>
                         </div>
-                        {selectedCaseStudy === cs.id && (
+                        {selectedCaseStudy === category.id && (
                           <FileText size={16} className="text-indigo-600" />
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  {selectedCaseStudy ? 'Case study selected' : 'Optional: select a relevant case study'}
+
+                {/* Show loading state when fetching files */}
+                {loadingFiles && (
+                  <div className="flex items-center gap-2 mt-3 text-sm text-blue-600">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Loading files from cloud storage...</span>
+                  </div>
+                )}
+
+                {/* Show cloud files if available */}
+                {cloudFiles.length > 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-md border border-blue-200">
+                    <p className="text-xs font-semibold text-blue-900 mb-2">
+                      Files found ({cloudFiles.length}):
+                    </p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {cloudFiles.map((file) => (
+                        <div key={file.id} className="text-xs text-blue-800 flex items-center gap-2">
+                          <FileText className="w-3 h-3" />
+                          <span>{file.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-slate-500 mt-2">
+                  {cloudConfigured 
+                    ? 'Files will be fetched from your connected cloud storage'
+                    : 'Configure cloud storage in Settings to access files'
+                  }
                 </p>
               </Card>
 
@@ -181,7 +294,7 @@ const ThreadIntelligence = ({ user, onLogout }) => {
 
           <ResizableHandle withHandle />
 
-          {/* RIGHT PANEL — Summary + Response */}
+          {/* RIGHT PANEL */}
           <ResizablePanel defaultSize={60} minSize={40}>
             <div className="h-full overflow-y-auto p-8 bg-white">
 
@@ -192,7 +305,7 @@ const ThreadIntelligence = ({ user, onLogout }) => {
                     No Analysis Yet
                   </h3>
                   <p className="text-slate-600 mt-2 max-w-md">
-                    Paste a thread and click “Analyze Thread” to see results.
+                    Paste a thread and click "Analyze Thread" to see results.
                   </p>
                 </div>
               ) : (

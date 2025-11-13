@@ -128,15 +128,25 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
         campaignData = campaignRes.data;
         setCurrentCampaign(campaignData);
 
-        await axios.post(`${API}/campaigns/${campaignData.id}/sequence`, {
+        const sequenceRes = await axios.post(`${API}/campaigns/${campaignData.id}/sequence`, {
           campaign_id: campaignData.id,
           touchpoint_config: touchpointConfig,
         });
+        
+        // Set the sequence immediately from the response
+        if (sequenceRes.data) {
+          setSequence(sequenceRes.data);
+        }
         toast.success('Campaign and sequence created!');
       }
 
       setConfigConfirmed(true);
-      await fetchSequence();
+      
+      // Fetch sequence to ensure we have the latest data
+      if (campaignData) {
+        const response = await axios.get(`${API}/campaigns/${campaignData.id}/sequence`);
+        setSequence(response.data);
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to save campaign');
     } finally {
@@ -338,28 +348,26 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                   </Card>
 
                   {/* Funnel Stage */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <Filter size={18} className="text-slate-600" />
-                      <Label className="text-lg font-semibold">Funnel Stage</Label>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                       {FUNNEL_STAGES.map(stage => (
                         <Card
                           key={stage.value}
                           onClick={() => !configConfirmed && setFormData({ ...formData, stage: stage.value })}
-                          className={`p-4 cursor-pointer transition-all ${
-                            formData.stage === stage.value
+                          className={`p-4 cursor-pointer transition-all rounded-xl
+                            ${formData.stage === stage.value
                               ? 'bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-600'
                               : 'bg-white border border-slate-200 hover:border-indigo-300'
-                          } ${configConfirmed ? 'cursor-not-allowed opacity-75' : ''}`}
+                            }
+                            ${configConfirmed ? 'cursor-not-allowed opacity-75' : ''}
+                          `}
                         >
                           <h4 className="font-bold text-slate-900 text-sm mb-1">{stage.label}</h4>
                           <p className="text-xs text-slate-600">{stage.description}</p>
                         </Card>
                       ))}
                     </div>
-                  </div>
+
+
 
                   {/* Touchpoint Configuration */}
                   <Card className="p-6 bg-white">
@@ -506,23 +514,27 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
 
                     {/* Edit Step Dialog */}
                     <Dialog open={!!editingStep} onOpenChange={() => setEditingStep(null)}>
-                      <DialogContent className="max-w-lg">
+                      <DialogContent className="w-[95vw] h-[90vh] max-w-none p-6 flex flex-col">
                         <DialogHeader>
                           <DialogTitle>Edit Step {editingStep?.step_number}</DialogTitle>
                           <DialogDescription>Update the content for this step.</DialogDescription>
                         </DialogHeader>
-                        <Textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          rows={6}
-                          className="w-full mt-4"
-                        />
+
+                        <div className="flex-1 mt-4">
+                          <Textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="w-full h-full resize-none"
+                          />
+                        </div>
+
                         <div className="flex justify-end gap-2 mt-4">
                           <Button variant="outline" onClick={() => setEditingStep(null)}>Cancel</Button>
                           <Button onClick={handleSaveEdit}>Save</Button>
                         </div>
                       </DialogContent>
                     </Dialog>
+
 
                     {/* Delete Step Confirmation */}
                     <Dialog open={!!deleteConfirmStep} onOpenChange={() => setDeleteConfirmStep(null)}>

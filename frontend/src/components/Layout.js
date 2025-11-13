@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Megaphone, MessageSquare, Mail, FileText, Globe, TrendingUp, Bookmark, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageSquare, Mail, FileText, Globe, TrendingUp, Bookmark, FolderOpen, LogOut } from 'lucide-react';
 
 const Layout = ({ children, user, onLogout }) => {
   const location = useLocation();
@@ -15,6 +15,7 @@ const Layout = ({ children, user, onLogout }) => {
     { path: '/gtm', icon: Globe, label: 'GTM Generator' },
     { path: '/learning', icon: TrendingUp, label: 'Learning Hub' },
     { path: '/saved', icon: Bookmark, label: 'Saved Items' },
+    { path: '/document-management', icon: FolderOpen, label: 'Document Management' },
   ];
 
   return (
