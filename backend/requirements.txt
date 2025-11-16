@@ -61,7 +61,7 @@ mdurl==0.1.2
 motor==3.3.1
 multidict==6.7.0
 mypy==1.18.2
-mypy_extensions==1.1.0
+mypy_extensions==1.1.1
 numpy==2.3.4
 oauthlib==3.3.1
 openai==1.99.9
@@ -128,3 +128,5 @@ yarl==1.22.0
 zipp==3.23.0
 httpx==0.28.1
 msal==1.31.1
+beautifulsoup4==4.12.3
+selenium==4.16.0
