@@ -11,10 +11,11 @@ const Layout = ({ children, user, onLogout }) => {
     { path: '/campaigns', icon: Megaphone, label: 'Campaigns' },
     { path: '/personalize', icon: MessageSquare, label: 'Personalize' },
     { path: '/thread-intelligence', icon: Mail, label: 'Thread Intelligence' },
-    { path: '/documents', icon: FileText, label: 'Documents' },
     { path: '/gtm', icon: Globe, label: 'GTM Generator' },
-    { path: '/learning', icon: TrendingUp, label: 'Learning Hub' },
-    { path: '/saved', icon: Bookmark, label: 'Saved Items' },
+    { path: '/documents', icon: FileText, label: 'Documents' },
+
+   // { path: '/learning', icon: TrendingUp, label: 'Learning Hub' },
+    //{ path: '/saved', icon: Bookmark, label: 'Saved Items' },
     { path: '/document-management', icon: FolderOpen, label: 'Document Management' },
   ];
 
