@@ -112,6 +112,9 @@ class Campaign(BaseModel):
     methodologies: List[str] = []
     tone: str
     resources: List[str] = []
+    custom_inputs: List[Dict[str, str]] = []
+    selected_documents: List[str] = []
+    auto_pick_documents: bool = False
     status: str = "draft"  # draft/review/published
     ai_content: Optional[str] = None
     created_by: str
@@ -127,6 +130,9 @@ class CampaignCreate(BaseModel):
     methodologies: List[str] = []
     tone: str
     resources: List[str] = []
+    custom_inputs: List[Dict[str, str]] = []
+    selected_documents: List[str] = []
+    auto_pick_documents: bool = False
 
 # NEW: Campaign Sequence Models
 class TouchpointConfig(BaseModel):
@@ -302,6 +308,7 @@ class DocumentFile(BaseModel):
     file_content: str  # base64 encoded
     file_size: int
     mime_type: str
+    summary: Optional[str] = None
     uploaded_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -489,6 +496,44 @@ async def generate_llm_response(prompt: str, system_message: str = None) -> str:
     except Exception as e:
         logging.error(f"LLM Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Error generating AI response")
+# ============== CAMPAIGN UTILITY FUNCTIONS ==============
+
+async def find_relevant_case_studies(docs: List[Dict], campaign_context: Dict, agent_context: Dict) -> List[str]:
+    """Find relevant case studies using summaries and LLM"""
+    relevant_doc_ids = []
+    
+    context_text = f"""
+Campaign Service: {campaign_context.get('service', '')}
+Campaign Stage: {campaign_context.get('stage', '')}
+Target ICP: {', '.join(campaign_context.get('icp', []))}
+Custom Inputs: {', '.join([ci.get('value', '') for ci in campaign_context.get('custom_inputs', [])])}
+Agent Value Props: {', '.join(agent_context.get('value_props', []))}
+"""
+    
+    for doc in docs:
+        doc_summary = doc.get('summary', '')
+        if not doc_summary:
+            continue
+            
+        relevance_prompt = f"""Given this campaign context:
+{context_text}
+
+And this case study summary:
+{doc_summary}
+
+Is this case study relevant to the campaign? Respond ONLY with "yes" or "no".
+"""
+        
+        try:
+            response = await generate_llm_response(relevance_prompt)
+            if 'yes' in response.lower():
+                relevant_doc_ids.append(doc['id'])
+        except Exception as e:
+            logger.error(f"Error checking relevance for doc {doc.get('id')}: {e}")
+            continue
+    
+    return relevant_doc_ids
+
 # ============== AUTH ROUTES ==============
 
 @api_router.post("/auth/register", response_model=TokenResponse)
@@ -630,13 +675,33 @@ async def create_campaign(campaign_data: CampaignCreate, current_user: User = De
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    campaign = Campaign(**campaign_data.model_dump(), created_by=current_user.id)
+    # Handle auto-pick documents
+    selected_docs = campaign_data.selected_documents
+    if campaign_data.auto_pick_documents:
+        all_docs = await db.document_files.find({},
+            {"_id": 0}
+        ).to_list(1000)
+        
+        campaign_context = {
+            'service': campaign_data.service,
+            'stage': campaign_data.stage,
+            'icp': campaign_data.icp,
+            'custom_inputs': campaign_data.custom_inputs,
+        }
+        
+        relevant_ids = await find_relevant_case_studies(all_docs, campaign_context, agent)
+        selected_docs = relevant_ids
+    
+    campaign = Campaign(
+        **campaign_data.model_dump(exclude={'selected_documents'}),
+        selected_documents=selected_docs,
+        created_by=current_user.id
+    )
     doc = campaign.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     doc['updated_at'] = doc['updated_at'].isoformat()
-    await db.campaigns.insert_one(doc)
     
-    # Increment agent usage
+    await db.campaigns.insert_one(doc)
     await db.agents.update_one({"id": campaign_data.agent_id}, {"$inc": {"usage_count": 1}})
     
     return campaign
@@ -672,6 +737,26 @@ async def generate_campaign_copy(campaign_id: str, current_user: User = Depends(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
+    # Build custom inputs text
+    custom_inputs_text = "\n".join([
+        f"Custom Input: {ci['value']}"
+        for ci in campaign.get('custom_inputs', [])
+    ])
+    
+    # Get selected documents
+    doc_urls = []
+    if campaign.get('selected_documents'):
+        docs = await db.document_files.find(
+            {"id": {"$in": campaign['selected_documents']}},
+            {"_id": 0, "metadata": 1}
+        ).to_list(1000)
+        
+        for doc in docs:
+            metadata = doc.get('metadata', {})
+            if metadata.get('source_url'):
+                doc_urls.append(metadata['source_url'])
+    
+    sources_text = "\n".join(doc_urls) if doc_urls else "No sources"
     methodology_text = ", ".join(campaign.get('methodologies', []))
     
     prompt = f"""**MODULE: Campaign Builder**
@@ -685,10 +770,16 @@ Campaign Context:
 - Tone: {campaign['tone']}
 - Methodologies: {methodology_text}
 
+Custom Inputs:
+{custom_inputs_text}
+
 Agent Profile:
 - Value Propositions: {', '.join(agent.get('value_props', []))}
 - Pain Points to Address: {', '.join(agent.get('pain_points', []))}
 - Target Personas: {', '.join(agent.get('personas', []))}
+
+Case Study References:
+{sources_text}
 
 Requirements:
 - Create compelling, personalized campaign copy (200-300 words)
@@ -697,11 +788,14 @@ Requirements:
 - Highlight value propositions naturally
 - Include clear CTA for booking a meeting
 - Follow the mandatory output structure
-- Make it ready to send immediately"""
+- Make it ready to send immediately
+
+IMPORTANT: At the end of your response, include:
+Sources used: {', '.join(doc_urls) if doc_urls else 'None'}
+"""
     
     ai_content = await generate_llm_response(prompt)
     
-    # Update campaign with generated content
     await db.campaigns.update_one(
         {"id": campaign_id},
         {"$set": {"ai_content": ai_content, "updated_at": datetime.now(timezone.utc).isoformat()}}
@@ -1556,12 +1650,14 @@ async def process_gtm_feedback(request: GTMFeedbackRequest, current_user: User =
     feedback_lower = feedback.lower()
     form_data = request.form_data
     validation = request.validation_result
-    
-    # Direct keyword matching for common actions
-    generate_keywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt']
-    adjustment_keywords = ['add', 'change', 'modify', 'update', 'include', 'ceo', 'details', '2', 'adjust']
-    detail_keywords = ['more details', 'tell me', 'explain', '3', 'add more']
-    
+
+
+
+    # Enhanced keyword matching for common actions
+    generate_keywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go"]
+    adjustment_keywords = ['add', 'change', 'modify', 'update', 'include', 'ceo', 'details', '2', 'adjust', 'want to add']
+    detail_keywords = ['more details', 'tell me', 'explain', '3', 'add more', 'elaborate']
+
     # Check for generate action
     if any(keyword in feedback_lower for keyword in generate_keywords):
         return {
@@ -1570,19 +1666,30 @@ async def process_gtm_feedback(request: GTMFeedbackRequest, current_user: User =
             "updated_validation": validation,
             "should_regenerate": True
         }
-    
+
     # Check for adjustment request
     if any(keyword in feedback_lower for keyword in adjustment_keywords):
         # Extract what they want to adjust using AI
         adjustment_prompt = f"""
-The user wants to make adjustments. They said: "{feedback}"
+You are a helpful GTM microsite assistant. The user wants to make adjustments to their microsite configuration.
 
-Company: {form_data.get('company_name', 'N/A')}
-Industry: {form_data.get('industry', 'N/A')}
+User's request: "{feedback}"
 
-Respond naturally asking them to specify EXACTLY what they want to add or change.
-Be specific and helpful. Keep it under 50 words.
-Example: "I'd be happy to add that! Could you tell me specifically what CEO information you'd like on the home page? For example: CEO name, photo, title, or a specific message?"
+Current Configuration:
+- Company: {form_data.get('company_name', 'Not specified')}
+- Industry: {form_data.get('industry', 'Not specified')}
+- Offering: {form_data.get('offering', 'Not specified')[:150]}
+- Pain Points: {form_data.get('pain_points', 'Not specified')}
+- Target Personas: {form_data.get('target_personas', 'Not specified')}
+
+Instructions:
+1. If they mentioned specific details to add (like "add CEO profile" or "include pricing"), acknowledge what they want to add
+2. Ask them for the SPECIFIC information needed (names, numbers, text, etc.)
+3. Be conversational and helpful
+4. Keep your response under 70 words
+5. Give examples of what information you need
+
+Example: "Great! I'll add CEO information to the microsite. Could you provide: CEO name, title, a brief bio (2-3 sentences), and if you have a headshot URL? This will make the homepage more personal and credible."
 """
         try:
             ai_response = await generate_llm_response(adjustment_prompt)
@@ -1595,47 +1702,78 @@ Example: "I'd be happy to add that! Could you tell me specifically what CEO info
         except:
             return {
                 "action": "update",
-                "message": "I'd be happy to help with that! Could you provide more specific details about what you'd like to add or change? For example, specific sections, content, or design elements?",
+                "message": "I'd be happy to help with that! Could you provide more specific details about what you'd like to add or change? For example, specific sections, content, design elements, or additional company information?",
                 "updated_validation": validation,
                 "should_regenerate": False
             }
-    
+
     # Check for details request
     if any(keyword in feedback_lower for keyword in detail_keywords):
+        industry = form_data.get('industry', 'your')
         return {
             "action": "clarify",
-            "message": f"Of course! For the {form_data.get('industry', 'your')} industry microsite, I can add details like:\n\n• Specific metrics and ROI data\n• Industry case studies\n• Technical specifications\n• Integration capabilities\n• Security certifications\n\nWhich of these would you like me to emphasize, or is there something else specific you'd like to add?",
+            "message": f"Of course! For the **{industry}** industry microsite, I can add more details like:\n\n• Specific ROI metrics and cost savings\n• Industry-specific case studies or examples\n• Technical specifications and integrations\n• Security and compliance certifications\n• Customer testimonials\n• Team/leadership information\n\nWhich of these would you like me to emphasize, or is there something else specific you'd like to include?",
             "updated_validation": validation,
             "should_regenerate": False
         }
-    
-    # For everything else, use AI to understand and respond
+
+    # For everything else, use AI to understand and respond contextually
     context_prompt = f"""
-You are helping create a microsite prompt. The user just said:
+You are a helpful GTM microsite assistant having a natural conversation. The user just said:
 
 "{feedback}"
 
-Context:
-- Company: {form_data.get('company_name', 'N/A')}
-- Industry: {form_data.get('industry', 'N/A')}
-- Offering: {form_data.get('offering', 'N/A')[:100]}...
+Current Context:
+- Company: {form_data.get('company_name', 'Not specified')}
+- Industry: {form_data.get('industry', 'Not specified')}
+- Offering: {form_data.get('offering', 'Not specified')[:150]}
+- Pain Points: {form_data.get('pain_points', 'Not specified')}
+- Target Decision Makers: {form_data.get('target_personas', 'Not specified')}
+- Validation Status: {'✓ Industry use cases found' if validation.get('has_use_cases') else '○ Using general best practices'}
 
-Respond naturally and helpfully. If they're providing specific information (like CEO details, company info, etc.), acknowledge it and ask if they want to generate the prompt with these additions.
+Instructions:
+1. Analyze if the user is:
+   a) Providing additional information/details → Acknowledge and confirm you'll include it, then ask if ready to generate
+   b) Asking a question → Answer clearly and helpfully
+   c) Giving unclear input → Ask a specific clarifying question
 
-If you're not sure what they want, ask a clarifying question.
+2. If they provided specific details (company info, features, pricing, team details, etc.):
+   - Acknowledge what they shared
+   - Confirm you'll include it in the microsite
+   - Ask: "Would you like me to generate the complete prompt now with these details?"
 
-Be conversational and specific. Keep response under 80 words.
+3. If they're asking about capabilities or options:
+   - Answer their question directly
+   - Provide 2-3 relevant suggestions
+   - Guide them toward the next step
+
+4. Be conversational, specific, and helpful
+5. Keep response under 90 words
+6. Use markdown formatting with ** for emphasis
+
+Example responses:
+- User gives details: "Great! I'll include [specific detail] in the microsite. This will make the [section] much stronger. Ready to generate the complete prompt with these additions?"
+- User asks question: "[Direct answer]. For example, [specific example]. Would you like me to include this in the microsite?"
+- Unclear input: "I want to make sure I understand. Are you asking about [option A] or [option B]? This will help me create the best microsite for you."
 """
-    
+
     try:
         ai_response = await generate_llm_response(context_prompt)
-        
-        # Check if user provided actual content/details in their message
-        has_content = len(feedback.split()) > 5 and not any(q in feedback_lower for q in ['what', 'how', 'why', '?'])
-        
+
+        # Check if user provided actual content/details (not just questions)
+        has_content = (
+            len(feedback.split()) > 8 and
+            not any(q in feedback_lower for q in ['what', 'how', 'why', 'can you', 'could you', '?']) and
+            any(indicator in feedback_lower for indicator in ['add', 'include', 'our', 'we', 'company', 'ceo', 'team', 'pricing', 'feature'])
+        )
+
         if has_content:
-            # User provided details, ask if ready to generate
-            response_msg = ai_response.strip() + "\n\nWould you like me to generate the prompt with these details now?"
+            # User provided substantial details
+            if "generate" not in ai_response.lower() and "ready" not in ai_response.lower():
+                response_msg = ai_response.strip() + "\n\n✅ Would you like me to **generate the complete prompt** now with these details included?"
+            else:
+                response_msg = ai_response.strip()
+
             return {
                 "action": "update",
                 "message": response_msg,
@@ -1643,41 +1781,150 @@ Be conversational and specific. Keep response under 80 words.
                 "should_regenerate": False
             }
         else:
+            # User is asking questions or being unclear
             return {
                 "action": "clarify",
                 "message": ai_response.strip(),
                 "updated_validation": validation,
                 "should_regenerate": False
             }
-            
+
     except Exception as e:
-        logger.error(f"Error processing feedback: {str(e)}")
+        logger.error(f"Error processing feedback with AI: {str(e)}")
         return {
             "action": "clarify",
-            "message": "I want to make sure I understand correctly. Could you rephrase what you'd like me to do? For example:\n\n• Generate the prompt as-is\n• Add specific details (tell me what)\n• Make changes (tell me what to change)",
+            "message": "I want to make sure I understand correctly. Could you tell me more about what you'd like? For example:\n\n• **Generate the prompt** with current details\n• **Add specific information** (company info, features, pricing, etc.)\n• **Make changes** to existing configuration\n\nWhat would be most helpful?",
             "updated_validation": validation,
             "should_regenerate": False
         }
 
+
 @api_router.post("/gtm/generate-final-prompt")
 async def generate_final_gtm_prompt(request: GTMFinalPromptRequest, current_user: User = Depends(get_current_user)):
     """
-    Generate final optimized prompt for microsite creation
+    Generate final optimized prompt for microsite creation with ALL user inputs.
+
+    SYSTEM PROMPT RULES:
+    1. Mandatory Inputs - Use ALL fields from Configuration panel exactly as provided
+    2. Include User Adjustments - Anything typed in Make Adjustments or Add More Details
+    3. Dynamic Case Studies Only - Query database, NO hardcoded case studies
     """
     form_data = request.form_data
     validation = request.validation_result
-    
-    # Build comprehensive prompt
-    use_cases_text = ""
+
+    # ============== 1. EXTRACT USER ADJUSTMENTS ==============
+    user_adjustments = form_data.get('user_adjustments', '')
+    user_adjustments_section = ""
+    if user_adjustments:
+        user_adjustments_section = f"\n\n## 📝 Additional Details from User\n{user_adjustments}\n"
+
+    # ============== 2. PROCESS MANDATORY CONFIGURATION INPUTS ==============
+    # Process pain points
+    pain_points = form_data.get('pain_points', '')
+    if isinstance(pain_points, str):
+        pain_points_list = [pp.strip() for pp in pain_points.split(',') if pp.strip()]
+    else:
+        pain_points_list = pain_points
+    pain_points_text = "\n".join([f"- {pp}" for pp in pain_points_list])
+
+    # Process key features
+    key_features = form_data.get('key_features', '')
+    if isinstance(key_features, str):
+        features_list = [ft.strip() for ft in key_features.split(',') if ft.strip()]
+    else:
+        features_list = key_features
+    features_text = "\n".join([f"- {ft}" for ft in features_list])
+
+    # Process target personas
+    target_personas = form_data.get('target_personas', '')
+    if isinstance(target_personas, str):
+        personas_list = [p.strip() for p in target_personas.split(',') if p.strip()]
+    else:
+        personas_list = target_personas
+    personas_text = ", ".join(personas_list)
+
+    # Process use cases if provided
+    user_use_cases = form_data.get('use_cases', '')
+    user_use_cases_text = ""
+    if user_use_cases:
+        if isinstance(user_use_cases, str):
+            use_cases_list = [uc.strip() for uc in user_use_cases.split(',') if uc.strip()]
+        else:
+            use_cases_list = user_use_cases
+        if use_cases_list:
+            user_use_cases_text = "\n\nUser-Specified Use Cases:\n"
+            user_use_cases_text += "\n".join([f"- {uc}" for uc in use_cases_list])
+
+    # ============== 3. DYNAMIC CASE STUDY FETCHING FROM DATABASE ==============
+    offering_keywords = form_data.get('offering', '').lower()
+    industry = form_data.get('industry', '').lower()
+
+    # Build search terms from offering and industry
+    search_terms = [industry]
+    common_tech_terms = ['ai', 'automation', 'analytics', 'cloud', 'machine learning', 'data', 'rpa',
+                         'crm', 'saas', 'platform', 'api', 'integration', 'workflow', 'optimization',
+                         'fintech', 'healthcare', 'ecommerce', 'retail', 'manufacturing']
+
+    for term in common_tech_terms:
+        if term in offering_keywords or term in industry:
+            search_terms.append(term)
+
+    # Query document_files collection for matching case studies
+    fetched_case_studies = []
+    try:
+        # Build MongoDB query using $or for multiple search terms
+        search_conditions = []
+        for term in search_terms:
+            search_conditions.append({"summary": {"$regex": term, "$options": "i"}})
+            search_conditions.append({"category": {"$regex": term, "$options": "i"}})
+            search_conditions.append({"filename": {"$regex": term, "$options": "i"}})
+
+        if search_conditions:
+            case_studies_cursor = db.document_files.find(
+                {"$or": search_conditions},
+                {"_id": 0, "filename": 1, "summary": 1, "category": 1, "metadata": 1}
+            ).limit(5)  # Limit to top 5 relevant case studies
+
+            fetched_case_studies = await   case_studies_cursor.to_list(5)
+
+        logger.info(f"Found {len(fetched_case_studies)} case studies for {industry} / {offering_keywords[:50]}")
+
+    except Exception as e:
+        logger.error(f"Error fetching case studies: {str(e)}")
+        fetched_case_studies = []
+
+    # Format case studies for inclusion in prompt
+    case_studies_section = ""
+    if fetched_case_studies:
+        case_studies_section = "\n\n## 📚 Relevant Case Studies (Dynamically Fetched)\n"
+        case_studies_section += "**These are REAL case studies from your database. Use them to add credibility:**\n\n"
+
+        for idx, cs in enumerate(fetched_case_studies, 1):
+            title = cs.get('filename', 'Untitled').replace('.pdf', '').replace('_', ' ')
+            summary = cs.get('summary', 'No summary available')[:300]
+            category = cs.get('category', 'General')
+            metadata = cs.get('metadata', {})
+            source_url = metadata.get('source_url', '')
+
+            case_studies_section += f"### {idx}. {title}\n"
+            case_studies_section += f"- **Category**: {category}\n"
+            if summary:
+                case_studies_section += f"- **Summary**: {summary}...\n"
+            if source_url:
+                case_studies_section += f"- **Link**: {source_url}\n"
+            case_studies_section += "\n"
+    else:
+        case_studies_section = "\n\n## 📚 Case Studies\n"
+        case_studies_section += "*Note: No relevant case studies found in database. Consider adding industry-specific examples manually.*\n\n"
+
+    # Build industry-specific use cases section
+    industry_use_cases_text = ""
     if validation.get('relevant_use_cases'):
-        use_cases_text = "\n\nIndustry-Specific Use Cases to Highlight:\n"
+        industry_use_cases_text = "\n\n## 💡 Industry-Specific Use Cases\n"
         for uc in validation['relevant_use_cases'][:3]:
-            use_cases_text += f"- {uc['title']}: {uc['description']} ({uc['impact']})\n"
-    
-    pain_points_text = "\n".join([f"- {pp}" for pp in form_data.get('pain_points', '').split(',') if pp.strip()])
-    features_text = "\n".join([f"- {ft}" for ft in form_data.get('key_features', '').split(',') if ft.strip()])
-    personas_text = form_data.get('target_personas', '')
-    
+            industry_use_cases_text += f"- **{uc['title']}**: {uc['description']} ({uc['impact']})\n"
+
+    # ============== 4. BUILD FINAL COMPREHENSIVE PROMPT ==============
     final_prompt = f"""Create a high-converting, interactive microsite for prospecting **{form_data['company_name']}** in the **{form_data['industry']}** industry.
 
 ## 🎯 Objective
@@ -1691,13 +1938,16 @@ Generate a modern, engaging single-page microsite that convinces decision-makers
 
 ## 💡 Our Solution
 {form_data['offering']}
+{user_adjustments_section}
 
 ## 🎯 Pain Points to Address
 {pain_points_text}
 
 ## ✨ Key Features to Highlight
-{features_text}
-{use_cases_text}
+{features_text if features_text else '- Innovative technology\n- Proven results\n- Industry expertise'}
+{user_use_cases_text}
+{industry_use_cases_text}
+{case_studies_section}
 
 ## 🎨 Design Requirements
 
@@ -1729,9 +1979,10 @@ Generate a modern, engaging single-page microsite that convinces decision-makers
   * Visual representation (charts, icons)
 - Industry-specific examples
 
-### Social Proof (if applicable)
-- Client logos or testimonial cards
+### Social Proof
+- Client logos or testimonial cards (use case studies above)
 - "Join 500+ companies transforming their {form_data['industry']} operations"
+- Include metrics from case studies if available
 
 ### Call-to-Action Section
 - Bold CTA: "Ready to Transform Your Operations?"
@@ -1777,16 +2028,16 @@ Generate a modern, engaging single-page microsite that convinces decision-makers
 - "Save 20+ hours per week"
 - "Increase efficiency by 40%"
 - "ROI in 3 months"
-(Customize based on offering)
+(Customize based on offering and case studies)
 
 ## 🚀 Must-Have Sections (in order)
 1. Navigation bar (sticky)
 2. Hero with CTA
 3. Pain points grid
 4. Solution overview
-5. Use cases/results
+5. Use cases/results (include case studies)
 6. Features breakdown
-7. Social proof
+7. Social proof (with case study references)
 8. Final CTA
 9. Footer
 
@@ -1801,10 +2052,13 @@ Generate a modern, engaging single-page microsite that convinces decision-makers
 A complete, production-ready React component that can be deployed immediately. Include all necessary imports, proper TypeScript types, and inline comments for easy customization.
 
 **Make it stunning, interactive, and conversion-focused. This microsite should make {form_data['company_name']} excited to learn more!**
+
+---
+**Note**: The case studies listed above are real examples from your database. Incorporate them naturally into the microsite to add credibility and demonstrate proven results.
 """
-    
+
     gtm_id = str(uuid.uuid4())
-    
+
     # Save to database
     gtm_record = {
         "id": gtm_id,
@@ -1813,19 +2067,21 @@ A complete, production-ready React component that can be deployed immediately. I
         "offering": form_data['offering'],
         "prompt": final_prompt,
         "validation_data": validation,
+        "case_studies_used": [cs.get('filename', '') for cs in fetched_case_studies],
+        "user_adjustments": user_adjustments,
         "status": "prompt_generated",
         "created_by": current_user.id,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    
-    await db.gtm_assets.insert_one(gtm_record)
-    
+
+    await    db.gtm_assets.insert_one(gtm_record)
+
     return {
         "id": gtm_id,
         "prompt": final_prompt,
-        "status": "prompt_generated"
+        "status": "prompt_generated",
+        "case_studies_count": len(fetched_case_studies)
     }
-
 @api_router.post("/gtm/generate-prompt", response_model=GTMResponse)
 async def generate_gtm_prompt(request: GTMRequest, current_user: User = Depends(get_current_user)):
     gtm_id = str(uuid.uuid4())
@@ -2010,6 +2266,31 @@ async def upload_document_file(doc_data: DocumentFileUpload, current_user: User 
         "filename": doc_file.filename
     }
 
+
+@api_router.get("/document-files/for-campaign")
+async def get_documents_for_campaign():
+    """Get document files formatted for campaign case study picker"""
+    documents = await   db.document_files.find(
+        {},
+        {"_id": 0, "id": 1, "filename": 1, "category": 1, "doc_type": 1, "metadata": 1, "summary": 1}
+    ).to_list(1000)
+
+    result = []
+    for doc in documents:
+        metadata = doc.get('metadata', {})
+        result.append({
+            'id': doc['id'],
+            'title': doc['filename'],
+            'category': doc['category'],
+            'doc_type': doc['doc_type'],
+            'source_url': metadata.get('source_url', ''),
+            'summary': doc.get('summary', '')
+        })
+
+    return {"documents": result}
+
+
+
 @api_router.get("/document-files")
 async def get_document_files(current_user: User = Depends(get_current_user)):
     """
@@ -2130,6 +2411,7 @@ async def get_document_categories(current_user: User = Depends(get_current_user)
         "categories": sorted(categories),
         "doc_types": sorted(doc_types)
     }
+
 
 
 
