@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Mail, MessageSquare, Phone, Sparkles, Copy,
   FileDown, Send, Edit2, Trash2, Save, Check, Filter,
-  AlertTriangle
+  AlertTriangle, Plus
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -51,6 +51,11 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(null);
   const [currentCampaign, setCurrentCampaign] = useState(campaign);
   const [deleteCampaignConfirm, setDeleteCampaignConfirm] = useState(false);
+  const [customInputs, setCustomInputs] = useState(campaign?.custom_inputs || []);
+  const [selectedDocuments, setSelectedDocuments] = useState(campaign?.selected_documents || []);
+  const [autoPickDocuments, setAutoPickDocuments] = useState(campaign?.auto_pick_documents || false);
+  const [availableDocuments, setAvailableDocuments] = useState([]);
+  const [showCreateAgent, setShowCreateAgent] = useState(false);
 
   const [formData, setFormData] = useState({
     campaign_name: campaign?.campaign_name || '',
@@ -75,6 +80,26 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
       fetchSequence();
     }
   }, [editMode, campaign]);
+
+  useEffect(() => {
+    fetchAvailableDocuments();
+  }, []);
+
+  const fetchAvailableDocuments = async () => {
+    try {
+      const response = await axios.get(`${API}/document-files/for-campaign`);
+      console.log('Documents response:', response.data);
+      setAvailableDocuments(response.data.documents || []);
+      if (response.data.documents?.length > 0) {
+        toast.success(`Loaded ${response.data.documents.length} documents`);
+      } else {
+        toast.info('No documents available. Upload some in Documents section.');
+      }
+    } catch (error) {
+      console.error('Failed to fetch documents:', error);
+      toast.error('Failed to load documents');
+    }
+  };
 
   const fetchSequence = async () => {
     if (!currentCampaign) return;
@@ -103,6 +128,28 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
     }
   };
 
+  const addCustomInput = () => {
+    setCustomInputs([...customInputs, { type: 'custom', value: '' }]);
+  };
+
+  const updateCustomInput = (index, value) => {
+    const updated = [...customInputs];
+    updated[index].value = value;
+    setCustomInputs(updated);
+  };
+
+  const removeCustomInput = (index) => {
+    setCustomInputs(customInputs.filter((_, i) => i !== index));
+  };
+
+  const toggleDocument = (docId) => {
+    setSelectedDocuments(prev =>
+      prev.includes(docId)
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    );
+  };
+
   const handleConfigConfirm = async () => {
     if (!formData.campaign_name || !formData.agent_id || !formData.service) {
       toast.error('Please fill in all required fields');
@@ -115,6 +162,9 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
       icp: formData.icp.split(',').map(i => i.trim()).filter(Boolean),
       methodologies: formData.methodologies.split(',').map(m => m.trim()).filter(Boolean),
       resources: formData.resources.split(',').map(r => r.trim()).filter(Boolean),
+      custom_inputs: customInputs,
+      selected_documents: selectedDocuments,
+      auto_pick_documents: autoPickDocuments,
     };
 
     try {
@@ -307,18 +357,29 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                           disabled={configConfirmed}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label>Select Agent *</Label>
+                      <div>
+                        <Label>Select Agent *</Label>
+                        <div className="flex gap-2">
                           <Select value={formData.agent_id} onValueChange={handleAgentSelect} disabled={configConfirmed}>
-                            <SelectTrigger>
+                            <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Choose agent" />
                             </SelectTrigger>
                             <SelectContent>
                               {agents.map(agent => <SelectItem key={agent.id} value={agent.id}>{agent.agent_name}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowCreateAgent(true)}
+                            disabled={configConfirmed}
+                          >
+                            <Plus size={16} className="mr-2" />
+                            New
+                          </Button>
                         </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4">
                         <div>
                           <Label>Service *</Label>
                           <Select
@@ -348,7 +409,9 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                   </Card>
 
                   {/* Funnel Stage */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <Card className="p-6 bg-white">
+                    <Label className="text-lg font-semibold mb-4 block">Funnel Stage</Label>
+                    <div className="grid grid-cols-3 gap-3">
                       {FUNNEL_STAGES.map(stage => (
                         <Card
                           key={stage.value}
@@ -366,6 +429,109 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                         </Card>
                       ))}
                     </div>
+                  </Card>
+
+                  {/* Custom Inputs Section */}
+                  <Card className="p-6 bg-white">
+                    <Label className="text-lg font-semibold mb-4 block">Custom Inputs (Additional Requirements)</Label>
+                    <div className="space-y-2">
+                      {customInputs.map((input, index) => (
+                        <div key={index} className="flex gap-2">
+                          <Textarea
+                            value={input.value}
+                            onChange={(e) => updateCustomInput(index, e.target.value)}
+                            placeholder="Enter custom requirement or context..."
+                            className="flex-1"
+                            rows={2}
+                            disabled={configConfirmed}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeCustomInput(index)}
+                            disabled={configConfirmed}
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={addCustomInput}
+                        className="w-full"
+                        disabled={configConfirmed}
+                      >
+                        <Plus size={16} className="mr-2" />
+                        Add Custom Input
+                      </Button>
+                    </div>
+                  </Card>
+
+                  {/* Case Studies Picker Section */}
+                  <Card className="p-6 bg-white">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-lg font-semibold">Case Studies & Documents</Label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="auto-pick"
+                            checked={autoPickDocuments}
+                            onChange={(e) => {
+                              setAutoPickDocuments(e.target.checked);
+                              if (e.target.checked) {
+                                setSelectedDocuments([]);
+                              }
+                            }}
+                            className="rounded"
+                            disabled={configConfirmed}
+                          />
+                          <Label htmlFor="auto-pick" className="cursor-pointer text-sm">
+                            Pick automatically
+                          </Label>
+                        </div>
+                      </div>
+                      
+                      {!autoPickDocuments && (
+                        <div className="border rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
+                          {availableDocuments.length === 0 ? (
+                            <p className="text-sm text-slate-500">No documents available</p>
+                          ) : (
+                            availableDocuments.map(doc => (
+                              <div
+                                key={doc.id}
+                                className="flex items-start gap-3 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                                onClick={() => !configConfirmed && toggleDocument(doc.id)}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedDocuments.includes(doc.id)}
+                                  onChange={() => toggleDocument(doc.id)}
+                                  className="mt-1"
+                                  disabled={configConfirmed}
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm">{doc.title}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {doc.category} • {doc.doc_type}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                      
+                      {autoPickDocuments && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                          <AlertTriangle size={16} className="inline mr-2" />
+                          Documents will be automatically selected based on campaign relevance
+                        </div>
+                      )}
+                    </div>
+                  </Card>
 
 
 
@@ -573,6 +739,33 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
+
+        {/* Agent Creation Modal */}
+        {showCreateAgent && (
+          <Dialog open={showCreateAgent} onOpenChange={setShowCreateAgent}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New Agent</DialogTitle>
+                <DialogDescription>
+                  Configure a new agent for this campaign
+                </DialogDescription>
+              </DialogHeader>
+              <div className="p-4">
+                <p className="text-sm text-slate-600 mb-4">
+                  You'll be redirected to the Agent creation page. After creating the agent, return here to select it.
+                </p>
+                <Button
+                  onClick={() => {
+                    setShowCreateAgent(false);
+                    window.open('/agents', '_blank');
+                  }}
+                >
+                  Go to Agent Creation
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </Layout>
   );
