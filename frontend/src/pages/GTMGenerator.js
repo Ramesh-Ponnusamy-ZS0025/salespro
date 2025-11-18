@@ -26,6 +26,7 @@ const GTMGenerator = ({ user, onLogout }) => {
   const [userInput, setUserInput] = useState('');
   const [finalPrompt, setFinalPrompt] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
+  const [userAdjustments, setUserAdjustments] = useState(''); // Collect all user adjustments
   const chatEndRef = useRef(null);
 
   const [formData, setFormData] = useState({
@@ -108,11 +109,25 @@ const GTMGenerator = ({ user, onLogout }) => {
     }, 100);
   };
 
-  const handleUserMessage = async () => {
+ const handleUserMessage = async () => {
     if (!userInput.trim() || loading) return;
 
     const userMsg = userInput.trim();
     addMessage(userMsg, 'user');
+
+    // Collect user adjustments (everything except "generate" commands)
+    const generateKeywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go"];
+    const isGenerateCommand = generateKeywords.some(keyword => userMsg.toLowerCase().includes(keyword));
+
+    // Create a variable to store current adjustments
+    let currentAdjustments = userAdjustments;
+
+    if (!isGenerateCommand) {
+      // This is an adjustment, collect it
+      currentAdjustments = userAdjustments ? `${userAdjustments}\n\n${userMsg}` : userMsg;
+      setUserAdjustments(currentAdjustments);
+    }
+
     setUserInput('');
     setLoading(true);
 
@@ -129,19 +144,31 @@ const GTMGenerator = ({ user, onLogout }) => {
         addMessage('Generating your comprehensive microsite prompt... 🚀', 'assistant');
 
         try {
+          // FIXED: Use currentAdjustments instead of state (which may not be updated yet)
+          const finalFormData = {
+            ...formData,
+            user_adjustments: currentAdjustments // Use the latest adjustments
+          };
+
+          console.log('Sending to backend:', {
+            form_data: finalFormData,
+            validation_result: validationResult,
+          });
+
           const promptResponse = await axios.post(`${API}/gtm/generate-final-prompt`, {
-            form_data: formData,
+            form_data: finalFormData,
             validation_result: validationResult,
           });
 
           setFinalPrompt(promptResponse.data);
           setPromptPanelOpen(true);
-          
+
           addMessage(
             '✅ **Prompt Generated Successfully!**\n\nYour production-ready microsite prompt is now available in the preview panel on the right.',
             'assistant'
           );
         } catch (error) {
+          console.error('Generation error:', error.response?.data);
           addMessage('❌ Failed to generate prompt. Please try again.', 'assistant');
           toast.error(error.response?.data?.detail || 'Generation failed');
         }
@@ -153,6 +180,7 @@ const GTMGenerator = ({ user, onLogout }) => {
       }
 
     } catch (error) {
+      console.error('Feedback processing error:', error.response?.data);
       addMessage('I apologize, I had trouble processing that. Could you rephrase?', 'assistant');
     } finally {
       setLoading(false);
@@ -170,6 +198,7 @@ const GTMGenerator = ({ user, onLogout }) => {
     setMessages([]);
     setFinalPrompt(null);
     setValidationResult(null);
+    setUserAdjustments('');
     setPromptPanelOpen(false);
     setFormData({
       company_name: '',
