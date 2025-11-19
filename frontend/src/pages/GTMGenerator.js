@@ -27,6 +27,7 @@ const GTMGenerator = ({ user, onLogout }) => {
   const [finalPrompt, setFinalPrompt] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
   const [userAdjustments, setUserAdjustments] = useState(''); // Collect all user adjustments
+  const [availableDocuments, setAvailableDocuments] = useState([]);
   const chatEndRef = useRef(null);
 
   const [formData, setFormData] = useState({
@@ -38,11 +39,27 @@ const GTMGenerator = ({ user, onLogout }) => {
     target_personas: '',
     use_cases: '',
     key_features: '',
+    customer_profile_details: '', // NEW FIELD
+    selected_documents: [], // NEW FIELD
+    auto_pick_documents: false, // NEW FIELD
   });
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    // Fetch available documents on component mount
+    const fetchDocuments = async () => {
+      try {
+        const response = await axios.get(`${API}/document-files/for-campaign`);
+        setAvailableDocuments(response.data.documents || []);
+      } catch (error) {
+        console.error('Failed to fetch documents:', error);
+      }
+    };
+    fetchDocuments();
+  }, []);
 
   const addMessage = (content, sender = 'assistant') => {
     setMessages(prev => [...prev, { content, sender, timestamp: new Date() }]);
@@ -209,6 +226,9 @@ const GTMGenerator = ({ user, onLogout }) => {
       target_personas: '',
       use_cases: '',
       key_features: '',
+      customer_profile_details: '',
+      selected_documents: [],
+      auto_pick_documents: false,
     });
   };
 
@@ -312,7 +332,85 @@ const GTMGenerator = ({ user, onLogout }) => {
                 />
               </div>
 
-              <Button 
+              <div>
+                <Label className="text-sm font-medium">Customer Profile Details (optional)</Label>
+                <Textarea
+                  value={formData.customer_profile_details}
+                  onChange={(e) => setFormData({ ...formData, customer_profile_details: e.target.value })}
+                  placeholder="Add specific details about customer profiles, buying behavior, decision-making process, etc."
+                  rows={3}
+                  className="mt-1"
+                />
+              </div>
+
+              {/* Case Studies Picker */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-medium">Case Studies & Documents</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="auto-pick"
+                      checked={formData.auto_pick_documents}
+                      onChange={(e) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          auto_pick_documents: e.target.checked,
+                          selected_documents: e.target.checked ? [] : prev.selected_documents
+                        }));
+                      }}
+                      className="rounded"
+                    />
+                    <label htmlFor="auto-pick" className="cursor-pointer text-sm">
+                      Auto Pick
+                    </label>
+                  </div>
+                </div>
+
+                {!formData.auto_pick_documents && (
+                  <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 bg-white">
+                    {availableDocuments.length === 0 ? (
+                      <p className="text-sm text-slate-500">No documents available</p>
+                    ) : (
+                      availableDocuments.map(doc => (
+                        <div
+                          key={doc.id}
+                          className="flex items-start gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              selected_documents: prev.selected_documents.includes(doc.id)
+                                ? prev.selected_documents.filter(id => id !== doc.id)
+                                : [...prev.selected_documents, doc.id]
+                            }));
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.selected_documents.includes(doc.id)}
+                            onChange={() => {}} // Handled by parent onClick
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{doc.title}</div>
+                            <div className="text-xs text-slate-500">
+                              {doc.category} • {doc.doc_type}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {formData.auto_pick_documents && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                    ✨ Documents will be automatically selected based on campaign relevance
+                  </div>
+                )}
+              </div>
+
+              <Button
                 onClick={handleStartGeneration}
                 disabled={loading}
                 className="w-full bg-indigo-600 hover:bg-indigo-700"
@@ -321,7 +419,7 @@ const GTMGenerator = ({ user, onLogout }) => {
                 Generate Prompt
               </Button>
 
-              <Button 
+              <Button
                 onClick={handleReset}
                 variant="outline"
                 className="w-full"

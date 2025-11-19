@@ -24,6 +24,7 @@ import shutil
 from bs4 import BeautifulSoup
 import aiohttp
 from typing import Set
+from gtm_agentdb import GTMAgentDB
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1557,47 +1558,62 @@ async def preview_msa_template(current_user: User = Depends(get_current_user)):
 
 # ============== GTM GENERATOR ROUTES ==============
 
-# Industry-specific use case database (mock - in production, this would be in MongoDB)
-INDUSTRY_USE_CASES = {
-    'Fintech': [
-        {'title': 'Payment Processing Optimization', 'description': 'Streamline transaction flows', 'impact': 'Reduce processing time by 40%'},
-        {'title': 'Fraud Detection Automation', 'description': 'AI-powered fraud prevention', 'impact': 'Decrease fraud losses by 60%'},
-        {'title': 'Customer Onboarding', 'description': 'Digital KYC and verification', 'impact': 'Onboard customers 3x faster'},
-    ],
-    'Healthcare': [
-        {'title': 'Patient Portal Integration', 'description': 'Centralized health records access', 'impact': 'Improve patient engagement 50%'},
-        {'title': 'Appointment Scheduling', 'description': 'AI-driven scheduling optimization', 'impact': 'Reduce no-shows by 35%'},
-    ],
-    'E-commerce': [
-        {'title': 'Personalized Recommendations', 'description': 'AI-powered product suggestions', 'impact': 'Increase conversion by 25%'},
-        {'title': 'Cart Abandonment Recovery', 'description': 'Automated reminder campaigns', 'impact': 'Recover 15% abandoned carts'},
-    ],
-    'SaaS': [
-        {'title': 'User Onboarding Automation', 'description': 'Guided product tours', 'impact': 'Boost activation rate 45%'},
-        {'title': 'Churn Prevention', 'description': 'Predictive analytics for retention', 'impact': 'Reduce churn by 30%'},
-    ],
-}
+# Initialize AgentDB-based GTM Assistant (per-user instances stored in dict)
+gtm_agents = {}
+
+def get_or_create_gtm_agent(user_id: str) -> GTMAgentDB:
+    """Get or create GTM agent instance for user"""
+    if user_id not in gtm_agents:
+        gtm_agents[user_id] = GTMAgentDB()
+    return gtm_agents[user_id]
+
+# Industry-specific use case database (now loaded dynamically from documents)
+async def get_industry_use_cases_from_db(industry: str) -> List[Dict[str, Any]]:
+    """Fetch industry-specific use cases from document_files collection"""
+    try:
+        # Search for documents matching the industry
+        docs = await db.document_files.find(
+            {"$or": [
+                {"category": {"$regex": industry, "$options": "i"}},
+                {"summary": {"$regex": industry, "$options": "i"}}
+            ]},
+            {"_id": 0, "filename": 1, "summary": 1, "category": 1}
+        ).limit(5).to_list(5)
+        
+        use_cases = []
+        for doc in docs:
+            use_cases.append({
+                'title': doc.get('filename', 'Case Study').replace('.pdf', ''),
+                'description': doc.get('summary', '')[:100],
+                'impact': f"Reference: {doc.get('category', 'General')}"
+            })
+        
+        return use_cases
+    except Exception as e:
+        logger.error(f"Error fetching industry use cases: {str(e)}")
+        return []
 
 @api_router.post("/gtm/validate", response_model=GTMValidationResponse)
 async def validate_gtm_data(request: GTMValidateRequest, current_user: User = Depends(get_current_user)):
     """
-    Validate GTM data and check for relevant use cases
+    Validate GTM data and check for relevant use cases - DYNAMIC from DB
     """
     industry = request.industry
-    has_use_cases = industry in INDUSTRY_USE_CASES
-    use_case_count = len(INDUSTRY_USE_CASES.get(industry, []))
+    
+    # Fetch relevant use cases from document_files database
+    relevant_use_cases = await get_industry_use_cases_from_db(industry)
+    has_use_cases = len(relevant_use_cases) > 0
+    use_case_count = len(relevant_use_cases)
     
     validation_notes = []
     suggestions = []
-    relevant_use_cases = []
     
     # Check data completeness
     if has_use_cases:
-        relevant_use_cases = INDUSTRY_USE_CASES[industry]
-        validation_notes.append(f"Found {use_case_count} industry-specific use cases for {industry}")
+        validation_notes.append(f"Found {use_case_count} industry-specific case studies for {industry} from your document library")
     else:
-        validation_notes.append(f"No specific use cases for {industry}. Will use general best practices.")
-        suggestions.append("Consider adding specific use cases relevant to your industry")
+        validation_notes.append(f"No specific case studies for {industry} in database. Will use general best practices.")
+        suggestions.append("Consider uploading industry-specific case studies to strengthen your microsite")
     
     # Validate pain points
     if len(request.pain_points) < 2:
@@ -1644,28 +1660,162 @@ Format: Simple bullet points, each under 15 words.
 @api_router.post("/gtm/process-feedback")
 async def process_gtm_feedback(request: GTMFeedbackRequest, current_user: User = Depends(get_current_user)):
     """
-    Process user feedback and adjust validation - Interactive like Claude
+    ENHANCED: Claude-like conversational AI for GTM generation
+    - Accepts ANY user input and processes contextually
+    - Never repeats questions unless truly unclear
+    - Builds context progressively
+    - Confirms before generating final output
     """
     feedback = request.feedback.strip()
     feedback_lower = feedback.lower()
     form_data = request.form_data
     validation = request.validation_result
 
+    # Track conversation context (you can enhance with Redis/DB for persistence)
+    conversation_context = {
+        'gathered_info': {},
+        'missing_fields': [],
+        'stage': 'collecting'  # collecting, confirming, generating
+    }
+
+    # Analyze what info we have vs what we need
+    required_fields = ['company_name', 'industry', 'offering', 'pain_points', 'target_personas']
+    for field in required_fields:
+        if form_data.get(field):
+            conversation_context['gathered_info'][field] = form_data[field]
+        else:
+            conversation_context['missing_fields'].append(field)
+
+    # Generate keywords for intent detection
+    generate_keywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go", 'ready']
+    adjustment_keywords = ['add', 'change', 'modify', 'update', 'include', '2', 'adjust', 'want to add', 'also', 'another']
+    detail_keywords = ['more details', 'tell me', 'explain', '3', 'add more', 'elaborate', 'what about']
+
+    # PRIORITY 1: Check if user wants to generate NOW
+    if any(keyword in feedback_lower for keyword in generate_keywords):
+        if len(conversation_context['missing_fields']) > 2:
+            # Too much missing info
+            missing_readable = ', '.join(conversation_context['missing_fields'])
+            return {
+                "action": "clarify",
+                "message": f"I'd love to generate the prompt! But I need a bit more information first. Could you share:\n\n{missing_readable}\n\nFeel free to provide these in any order - just tell me naturally!",
+                "updated_validation": validation,
+                "should_regenerate": False
+            }
+        else:
+            # Enough info - proceed to generate
+            return {
+                "action": "generate",
+                "message": "Perfect! Generating your comprehensive microsite prompt now... 🚀",
+                "updated_validation": validation,
+                "should_regenerate": True
+            }
+
+    # PRIORITY 2: Extract usable information from ANY user input
+    # Use AI to intelligently parse what the user is providing
+    extraction_prompt = f"""You are a smart information extractor. The user said:
+
+"{feedback}"
+
+Current context we have:
+{conversation_context['gathered_info']}
+
+Extract ANY relevant information and classify it into these categories:
+- company_name
+- industry  
+- offering (product/service description)
+- pain_points (challenges, problems)
+- target_personas (decision makers, roles)
+- additional_details (anything else useful)
+
+If the input seems vague or unrelated, just acknowledge it positively.
+
+Respond in JSON format:
+{{
+  "extracted": {{"field_name": "extracted value"}},
+  "is_vague": true/false,
+  "friendly_response": "A brief, encouraging response"
+}}
+"""
+
+    try:
+        ai_response = await generate_llm_response(extraction_prompt)
+        # Parse AI response (simplified - in production use proper JSON parsing)
+        import json
+        import re
+        
+        # Extract JSON from response
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', ai_response, re.DOTALL)
+        if json_match:
+            extracted_data = json.loads(json_match.group())
+            
+            # Update form_data with extracted info
+            if extracted_data.get('extracted'):
+                for field, value in extracted_data['extracted'].items():
+                    if value and value.strip():
+                        form_data[field] = value
+                        conversation_context['gathered_info'][field] = value
+                        if field in conversation_context['missing_fields']:
+                            conversation_context['missing_fields'].remove(field)
+            
+            # Generate contextual response
+            if extracted_data.get('is_vague'):
+                response_msg = extracted_data.get('friendly_response', 'I want to make sure I understand correctly. Could you tell me more?')
+            else:
+                # Show what we gathered
+                gathered_summary = "\n".join([f"✓ **{k.replace('_', ' ').title()}**: {v[:50]}{'...' if len(v) > 50 else ''}" 
+                                              for k, v in conversation_context['gathered_info'].items()])
+                
+                if len(conversation_context['missing_fields']) > 0:
+                    response_msg = f"Great! Here's what I have so far:\n\n{gathered_summary}\n\n"
+                    response_msg += "Anything else you'd like to add, or ready to generate?"
+                else:
+                    response_msg = f"Perfect! Here's everything we have:\n\n{gathered_summary}\n\n"
+                    response_msg += "✅ Ready to **generate the prompt**? Just say 'generate' or 'yes'!"
+            
+            return {
+                "action": "update",
+                "message": response_msg,
+                "updated_validation": validation,
+                "updated_form_data": form_data,
+                "should_regenerate": False
+            }
+    except Exception as e:
+        logger.error(f"AI extraction error: {str(e)}")
+    
+    # FALLBACK: Acknowledge input and show progress
+    gathered_count = len(conversation_context['gathered_info'])
+    total_required = len(required_fields)
+    
+    return {
+        "action": "acknowledge",
+        "message": f"Got it! I've noted that down. We have {gathered_count}/{total_required} key pieces of information.\n\n"
+                   f"Feel free to share more details, or let me know when you're ready to generate!",
+        "updated_validation": validation,
+        "should_regenerate": False
+    }
+
+    # OLD LOGIC BELOW (REMOVED - now handled by AgentDB)
+    # feedback = request.feedback.strip()
+    # feedback_lower = feedback.lower()
+    # form_data = request.form_data
+    # validation = request.validation_result
+
 
 
     # Enhanced keyword matching for common actions
-    generate_keywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go"]
-    adjustment_keywords = ['add', 'change', 'modify', 'update', 'include', 'ceo', 'details', '2', 'adjust', 'want to add']
-    detail_keywords = ['more details', 'tell me', 'explain', '3', 'add more', 'elaborate']
+    # generate_keywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go"]
+    # adjustment_keywords = ['add', 'change', 'modify', 'update', 'include', 'ceo', 'details', '2', 'adjust', 'want to add']
+    # detail_keywords = ['more details', 'tell me', 'explain', '3', 'add more', 'elaborate']
 
     # Check for generate action
-    if any(keyword in feedback_lower for keyword in generate_keywords):
-        return {
-            "action": "generate",
-            "message": "Perfect! Generating your comprehensive microsite prompt now... 🚀",
-            "updated_validation": validation,
-            "should_regenerate": True
-        }
+    # if any(keyword in feedback_lower for keyword in generate_keywords):
+    #     return {
+    #         "action": "generate",
+    #         "message": "Perfect! Generating your comprehensive microsite prompt now... 🚀",
+    #         "updated_validation": validation,
+    #         "should_regenerate": True
+    #     }
 
     # Check for adjustment request
     if any(keyword in feedback_lower for keyword in adjustment_keywords):
@@ -1826,6 +1976,12 @@ async def generate_final_gtm_prompt(request: GTMFinalPromptRequest, current_user
     else:
         pain_points_list = pain_points
     pain_points_text = "\n".join([f"- {pp}" for pp in pain_points_list])
+    
+    # Process customer profile details
+    customer_profile_details = form_data.get('customer_profile_details', '')
+    customer_profile_section = ""
+    if customer_profile_details:
+        customer_profile_section = f"\n\n## 👥 Customer Profile Details\n{customer_profile_details}\n"
 
     # Process key features
     key_features = form_data.get('key_features', '')
@@ -1858,6 +2014,10 @@ async def generate_final_gtm_prompt(request: GTMFinalPromptRequest, current_user
     # ============== 3. DYNAMIC CASE STUDY FETCHING FROM DATABASE ==============
     offering_keywords = form_data.get('offering', '').lower()
     industry = form_data.get('industry', '').lower()
+    
+    # Check if user selected specific documents or wants auto-pick
+    selected_doc_ids = form_data.get('selected_documents', [])
+    auto_pick = form_data.get('auto_pick_documents', False)
 
     # Build search terms from offering and industry
     search_terms = [industry]
@@ -1872,22 +2032,32 @@ async def generate_final_gtm_prompt(request: GTMFinalPromptRequest, current_user
     # Query document_files collection for matching case studies
     fetched_case_studies = []
     try:
-        # Build MongoDB query using $or for multiple search terms
-        search_conditions = []
-        for term in search_terms:
-            search_conditions.append({"summary": {"$regex": term, "$options": "i"}})
-            search_conditions.append({"category": {"$regex": term, "$options": "i"}})
-            search_conditions.append({"filename": {"$regex": term, "$options": "i"}})
-
-        if search_conditions:
+        if selected_doc_ids and not auto_pick:
+            # User manually selected specific documents
             case_studies_cursor = db.document_files.find(
-                {"$or": search_conditions},
-                {"_id": 0, "filename": 1, "summary": 1, "category": 1, "metadata": 1}
-            ).limit(5)  # Limit to top 5 relevant case studies
+                {"id": {"$in": selected_doc_ids}},
+                {"_id": 0, "id": 1, "filename": 1, "summary": 1, "category": 1, "metadata": 1}
+            )
+            fetched_case_studies = await case_studies_cursor.to_list(len(selected_doc_ids))
+            logger.info(f"Using {len(fetched_case_studies)} user-selected case studies")
+        
+        else:
+            # Auto-pick mode: Build MongoDB query using $or for multiple search terms
+            search_conditions = []
+            for term in search_terms:
+                search_conditions.append({"summary": {"$regex": term, "$options": "i"}})
+                search_conditions.append({"category": {"$regex": term, "$options": "i"}})
+                search_conditions.append({"filename": {"$regex": term, "$options": "i"}})
 
-            fetched_case_studies = await   case_studies_cursor.to_list(5)
+            if search_conditions:
+                case_studies_cursor = db.document_files.find(
+                    {"$or": search_conditions},
+                    {"_id": 0, "id": 1, "filename": 1, "summary": 1, "category": 1, "metadata": 1}
+                ).limit(5)  # Limit to top 5 relevant case studies
 
-        logger.info(f"Found {len(fetched_case_studies)} case studies for {industry} / {offering_keywords[:50]}")
+                fetched_case_studies = await case_studies_cursor.to_list(5)
+
+            logger.info(f"Auto-picked {len(fetched_case_studies)} case studies for {industry} / {offering_keywords[:50]}")
 
     except Exception as e:
         logger.error(f"Error fetching case studies: {str(e)}")
@@ -1939,6 +2109,7 @@ Generate a modern, engaging single-page microsite that convinces decision-makers
 ## 💡 Our Solution
 {form_data['offering']}
 {user_adjustments_section}
+{customer_profile_section}
 
 ## 🎯 Pain Points to Address
 {pain_points_text}
