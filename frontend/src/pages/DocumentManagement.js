@@ -82,7 +82,11 @@ const DocumentManagement = ({ user, onLogout }) => {
   });
 
   useEffect(() => {
+
     fetchDocuments();
+  }, []);
+
+  useEffect(() => {
     
     // Cleanup function to revoke Blob URLs when component unmounts
     return () => {
@@ -503,6 +507,8 @@ const DocumentManagement = ({ user, onLogout }) => {
       </div>
     );
   };
+
+  console.log('groupedDocs', groupedDocs)
 
   return (
     <Layout user={user} onLogout={onLogout}>
