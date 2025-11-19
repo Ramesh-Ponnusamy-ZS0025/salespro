@@ -73,6 +73,7 @@ const DocumentManagement = ({ user, onLogout }) => {
   const [scrapingZuci, setScrapingZuci] = useState(false);
   const [pdfError, setPdfError] = useState(false);
   const [useEmbedForPdf, setUseEmbedForPdf] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
 
   const [uploadForm, setUploadForm] = useState({
     category: '',
@@ -82,7 +83,14 @@ const DocumentManagement = ({ user, onLogout }) => {
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+    
+    // Cleanup function to revoke Blob URLs when component unmounts
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [pdfBlobUrl]);
 
   useEffect(() => {
     // Render DOCX when selectedDoc changes and it's a DOCX file
@@ -173,15 +181,41 @@ const DocumentManagement = ({ user, onLogout }) => {
       setSelectedDoc(null); // Clear current doc first
       setPdfError(false); // Reset PDF error state
       setUseEmbedForPdf(false); // Reset embed fallback
+      
+      // Revoke previous PDF blob URL if exists
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+        setPdfBlobUrl(null);
+      }
+      
       const response = await axios.get(`${API}/document-files/${doc.id}`);
-      console.log('Document loaded:', {
+      /*console.log('Document loaded:', {
         id: response.data.id,
         filename: response.data.filename,
         mime_type: response.data.mime_type,
         file_size: response.data.file_size,
         has_content: !!response.data.file_content,
         content_length: response.data.file_content?.length || 0
-      });
+      }); */
+      
+      // For PDFs, create a Blob URL instead of using data URI
+      if (response.data.mime_type?.includes('pdf') && response.data.file_content) {
+        try {
+          const byteCharacters = atob(response.data.file_content);
+          const byteArray = new Uint8Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteArray[i] = byteCharacters.charCodeAt(i);
+          }
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(blobUrl);
+          console.log('Created PDF Blob URL:', blobUrl);
+        } catch (blobError) {
+          console.error('Error creating PDF Blob URL:', blobError);
+          toast.error('Error processing PDF file');
+        }
+      }
+      
       setSelectedDoc(response.data);
     } catch (error) {
       console.error('Failed to load document:', error);
@@ -375,31 +409,18 @@ const DocumentManagement = ({ user, onLogout }) => {
           )}
           {isPdf && (
             <div className="h-full">
-              {selectedDoc.file_content && !pdfError ? (
+              {pdfBlobUrl && !pdfError ? (
                 <div className="relative h-full">
-                  {!useEmbedForPdf ? (
-                    <iframe
-                      key={`iframe-${selectedDoc.id}`}
-                      src={`data:application/pdf;base64,${selectedDoc.file_content}`}
-                      className="w-full h-full rounded-lg shadow-lg"
-                      title={selectedDoc.filename}
-                      onError={() => {
-                        console.error('PDF iframe rendering failed, trying embed tag');
-                        setUseEmbedForPdf(true);
-                      }}
-                    />
-                  ) : (
-                    <embed
-                      key={`embed-${selectedDoc.id}`}
-                      src={`data:application/pdf;base64,${selectedDoc.file_content}`}
-                      type="application/pdf"
-                      className="w-full h-full rounded-lg shadow-lg"
-                      onError={() => {
-                        console.error('PDF embed rendering also failed');
-                        setPdfError(true);
-                      }}
-                    />
-                  )}
+                  <iframe
+                    key={`iframe-${selectedDoc.id}`}
+                    src={pdfBlobUrl}
+                    className="w-full h-full rounded-lg shadow-lg"
+                    title={selectedDoc.filename}
+                    onError={() => {
+                      console.error('PDF iframe rendering failed');
+                      setPdfError(true);
+                    }}
+                  />
                 </div>
               ) : pdfError ? (
                 <div className="flex items-center justify-center h-full">
@@ -422,6 +443,13 @@ const DocumentManagement = ({ user, onLogout }) => {
                         Try Again
                       </Button>
                     </div>
+                  </div>
+                </div>
+              ) : !pdfBlobUrl && selectedDoc.file_content ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Loader className="w-12 h-12 mx-auto mb-4 animate-spin text-indigo-600" />
+                    <p className="text-gray-600">Processing PDF...</p>
                   </div>
                 </div>
               ) : (

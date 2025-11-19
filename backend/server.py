@@ -2623,10 +2623,45 @@ async def crawl_zuci_case_studies() -> List[Dict[str, Any]]:
     
     return case_studies
 
+async def generate_case_study_summary(study: Dict[str, Any]) -> str:
+    """Generate a 5-6 line summary for a case study using LLM"""
+    try:
+        description = study.get('description', '')
+        title = study.get('title', '')
+        category = study.get('category', '')
+        tags = ', '.join(study.get('tags', [])[:3])
+        
+        summary_prompt = f"""Summarize this case study in 5-6 concise lines:
+
+Title: {title}
+Category: {category}
+Description: {description}
+Tags: {tags}
+
+Provide a clear, informative summary that explains:
+1. What the case study is about
+2. The industry/domain
+3. Key challenges or problems addressed
+4. Main solutions or outcomes
+5. Business impact or results
+
+Keep it professional and focused on business value. Maximum 6 lines."""
+        
+        summary = await generate_llm_response(summary_prompt)
+        # Clean up the summary - remove extra whitespace and limit lines
+        lines = [line.strip() for line in summary.split('\n') if line.strip()]
+        summary = '\n'.join(lines[:6])  # Limit to 6 lines
+        return summary
+    except Exception as e:
+        logger.error(f"Error generating summary: {str(e)}")
+        # Fallback to basic summary
+        return f"{study.get('title', 'Case Study')}\n{study.get('category', 'General')} - {study.get('type', 'Case Study')}\n{study.get('description', '')[:200]}"
+
 @api_router.post("/document-files/scrape-zuci-case-studies")
 async def scrape_zuci_case_studies(current_user: User = Depends(get_current_user)):
     """
-    Scrape Zuci Systems website for case studies and save them to document files
+    Scrape Zuci Systems website for case studies and save them to document files.
+    Generates summaries and overwrites existing documents with the same filename.
     """
     try:
         logger.info("Starting Zuci case studies scraping...")
@@ -2640,19 +2675,27 @@ async def scrape_zuci_case_studies(current_user: User = Depends(get_current_user
             }
         
         saved_studies = []
+        updated_studies = []
         
         # Save each case study to database
         for study in case_studies:
             try:
+                filename = study.get('filename', f"{study['title'][:50].replace(' ', '_')}.pdf")
+                
+                # Generate summary for the case study
+                logger.info(f"Generating summary for: {study['title']}")
+                summary = await generate_case_study_summary(study)
+                
                 # Create document file entry
                 doc_file = {
                     "id": str(uuid.uuid4()),
-                    "filename": study.get('filename', f"{study['title'][:50].replace(' ', '_')}.pdf"),
+                    "filename": filename,
                     "category": study.get('category', 'General'),
                     "doc_type": study.get('type', 'Case Study'),
                     "file_content": study.get('file_content', ''),
                     "file_size": study.get('file_size', 0),
                     "mime_type": "application/pdf",
+                    "summary": summary,
                     "uploaded_by": current_user.id,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -2667,29 +2710,66 @@ async def scrape_zuci_case_studies(current_user: User = Depends(get_current_user
                 
                 # Only save if has file content
                 if doc_file['file_content']:
-                    await db.document_files.insert_one(doc_file)
+                    # Check if document with same filename exists
+                    existing_doc = await db.document_files.find_one(
+                        {"filename": filename},
+                        {"_id": 0, "id": 1}
+                    )
                     
-                    saved_studies.append({
-                        "id": doc_file['id'],
-                        "title": study['title'],
-                        "category": doc_file['category'],
-                        "type": doc_file['doc_type'],
-                        "source_url": study.get('source_url'),
-                        "pdf_url": study.get('pdf_url'),
-                        "filename": doc_file['filename'],
-                        "tags": study.get('tags', [])
-                    })
+                    if existing_doc:
+                        # Overwrite existing document - keep the same ID
+                        doc_file['id'] = existing_doc['id']
+                        doc_file['updated_at'] = datetime.now(timezone.utc).isoformat()
+                        
+                        await db.document_files.replace_one(
+                            {"id": existing_doc['id']},
+                            doc_file
+                        )
+                        logger.info(f"Overwritten existing document: {filename}")
+                        
+                        updated_studies.append({
+                            "id": doc_file['id'],
+                            "title": study['title'],
+                            "category": doc_file['category'],
+                            "type": doc_file['doc_type'],
+                            "source_url": study.get('source_url'),
+                            "pdf_url": study.get('pdf_url'),
+                            "filename": doc_file['filename'],
+                            "tags": study.get('tags', []),
+                            "summary": summary,
+                            "action": "updated"
+                        })
+                    else:
+                        # Insert new document
+                        await db.document_files.insert_one(doc_file)
+                        logger.info(f"Created new document: {filename}")
+                        
+                        saved_studies.append({
+                            "id": doc_file['id'],
+                            "title": study['title'],
+                            "category": doc_file['category'],
+                            "type": doc_file['doc_type'],
+                            "source_url": study.get('source_url'),
+                            "pdf_url": study.get('pdf_url'),
+                            "filename": doc_file['filename'],
+                            "tags": study.get('tags', []),
+                            "summary": summary,
+                            "action": "created"
+                        })
             
             except Exception as e:
                 logger.error(f"Error saving case study {study.get('title')}: {str(e)}")
                 continue
         
+        all_studies = saved_studies + updated_studies
+        
         return {
             "success": True,
-            "message": f"Successfully scraped and saved {len(saved_studies)} case studies",
+            "message": f"Successfully processed {len(all_studies)} case studies ({len(saved_studies)} new, {len(updated_studies)} updated)",
             "total_found": len(case_studies),
             "total_saved": len(saved_studies),
-            "case_studies": saved_studies
+            "total_updated": len(updated_studies),
+            "case_studies": all_studies
         }
     
     except Exception as e:
