@@ -133,7 +133,7 @@ const GTMGenerator = ({ user, onLogout }) => {
     addMessage(userMsg, 'user');
 
     // Collect user adjustments (everything except "generate" commands)
-    const generateKeywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go"];
+    const generateKeywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go", 'ready'];
     const isGenerateCommand = generateKeywords.some(keyword => userMsg.toLowerCase().includes(keyword));
 
     // Create a variable to store current adjustments
@@ -154,6 +154,11 @@ const GTMGenerator = ({ user, onLogout }) => {
         validation_result: validationResult,
         form_data: formData,
       });
+
+      // Update form data if backend extracted new information
+      if (response.data.updated_form_data) {
+        setFormData(prev => ({ ...prev, ...response.data.updated_form_data }));
+      }
 
       if (response.data.should_regenerate || response.data.action === 'generate') {
         addMessage(response.data.message, 'assistant');
@@ -198,7 +203,8 @@ const GTMGenerator = ({ user, onLogout }) => {
 
     } catch (error) {
       console.error('Feedback processing error:', error.response?.data);
-      addMessage('I apologize, I had trouble processing that. Could you rephrase?', 'assistant');
+      addMessage('I had trouble processing that. Could you provide more details or try rephrasing?', 'assistant');
+      toast.error('Processing failed');
     } finally {
       setLoading(false);
     }
