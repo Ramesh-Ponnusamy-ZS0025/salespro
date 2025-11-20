@@ -50,7 +50,7 @@ const Dashboard = ({ user, onLogout }) => {
       <div className="p-8" data-testid="dashboard-page">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Welcome back, {user?.username}! 👋</h1>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">Let’s build pipeline and close more  {user?.username}! 👋</h1>
           <p className="text-slate-600 text-lg">Here's what's happening with your sales operations today.</p>
         </div>
 
