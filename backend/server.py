@@ -83,7 +83,6 @@ class Agent(BaseModel):
     pain_points: List[str] = []
     personas: List[str] = []
     tone: str = "professional"
-    methodologies: List[str] = []
     example_copies: List[str] = []
     version: str = "1.0"
     created_by: str
@@ -99,7 +98,6 @@ class AgentCreate(BaseModel):
     pain_points: List[str] = []
     personas: List[str] = []
     tone: str = "professional"
-    methodologies: List[str] = []
     example_copies: List[str] = []
 
 class Campaign(BaseModel):

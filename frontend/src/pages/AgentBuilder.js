@@ -52,6 +52,20 @@ const PERSONAS = [
   'Head of Innovation',
   'Technical Architect',
   'VP of Operations',
+  'CFO',
+  'COO',
+  'VP of Finance',
+  'Risk Manager',
+  'Compliance Officer',
+  'Head of Sales',
+  'VP of Marketing',
+  'Business Analyst',
+  'Operations Manager',
+  'Supply Chain Manager',
+  'Manufacturing Director',
+  'Research Director',
+  'Data Scientist',
+  'Other',
 ];
 
 const AgentBuilder = ({ user, onLogout }) => {
@@ -61,6 +75,7 @@ const AgentBuilder = ({ user, onLogout }) => {
   const [editingAgent, setEditingAgent] = useState(null);
   const [preview, setPreview] = useState(null);
   const [selectedPersonas, setSelectedPersonas] = useState([]);
+  const [customPersona, setCustomPersona] = useState('');
   const [formData, setFormData] = useState({
     agent_name: '',
     service: '',
@@ -68,7 +83,7 @@ const AgentBuilder = ({ user, onLogout }) => {
     value_props: '',
     pain_points: '',
     tone: 'professional',
-    methodologies: '',
+    //methodologies: '',
     example_copies: '',
   });
 
@@ -102,7 +117,7 @@ const AgentBuilder = ({ user, onLogout }) => {
       value_props: formData.value_props.split(',').map(v => v.trim()).filter(Boolean),
       pain_points: formData.pain_points.split(',').map(p => p.trim()).filter(Boolean),
       personas: selectedPersonas,
-      methodologies: formData.methodologies.split(',').map(m => m.trim()).filter(Boolean),
+     // methodologies: formData.methodologies.split(',').map(m => m.trim()).filter(Boolean),
       example_copies: formData.example_copies.split('\n').filter(Boolean),
     };
 
@@ -135,7 +150,7 @@ const AgentBuilder = ({ user, onLogout }) => {
       value_props: agent.value_props.join(', '),
       pain_points: agent.pain_points.join(', '),
       tone: agent.tone,
-      methodologies: agent.methodologies.join(', '),
+     // methodologies: agent.methodologies.join(', '),
       example_copies: agent.example_copies.join('\n'),
     });
     setShowDialog(true);
@@ -170,18 +185,30 @@ const AgentBuilder = ({ user, onLogout }) => {
       value_props: '',
       pain_points: '',
       tone: 'professional',
-      methodologies: '',
+     // methodologies: '',
       example_copies: '',
     });
     setSelectedPersonas([]);
+    setCustomPersona('');
   };
 
   const togglePersona = (persona) => {
+    if (persona === 'Other') {
+      return; // Don't add "Other" directly, use the custom input instead
+    }
     setSelectedPersonas(prev =>
       prev.includes(persona)
         ? prev.filter(p => p !== persona)
         : [...prev, persona]
     );
+  };
+
+  const addCustomPersona = () => {
+    const trimmed = customPersona.trim();
+    if (trimmed && !selectedPersonas.includes(trimmed)) {
+      setSelectedPersonas(prev => [...prev, trimmed]);
+      setCustomPersona('');
+    }
   };
 
   const removePersona = (persona) => {
@@ -194,7 +221,7 @@ const AgentBuilder = ({ user, onLogout }) => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-slate-900 mb-2">Agent Builder</h1>
-            <p className="text-slate-600">Create and manage AI-powered sales agents</p>
+            <p className="text-slate-600">Pre-build Agents for Your Offerings</p>
           </div>
           <Dialog open={showDialog} onOpenChange={setShowDialog}>
             <DialogTrigger asChild>
@@ -272,17 +299,25 @@ const AgentBuilder = ({ user, onLogout }) => {
                     value={formData.value_props}
                     onChange={(e) => setFormData({ ...formData, value_props: e.target.value })}
                     placeholder="Reduce costs by 40%, Improve efficiency, Scale operations"
+                    rows={4}
                     required
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Industry templates available: Banking, FinTech, SaaS, Credit Unions, Manufacturing, Research
+                  </p>
                 </div>
                 <div>
-                  <Label>Pain Points (comma-separated) *</Label>
+                  <Label>Pain Points (minimum 3 recommended) *</Label>
                   <Textarea
                     value={formData.pain_points}
                     onChange={(e) => setFormData({ ...formData, pain_points: e.target.value })}
-                    placeholder="Legacy systems, Manual processes, Limited scalability"
+                    placeholder="Legacy systems slowing innovation, Manual processes causing errors, Limited scalability hindering growth"
+                    rows={5}
                     required
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Provide at least 3 pain points for richer targeting. Industry-specific templates available.
+                  </p>
                 </div>
                 <div>
                   <Label>Target Personas (multi-select) *</Label>
@@ -313,39 +348,62 @@ const AgentBuilder = ({ user, onLogout }) => {
                           <SelectItem 
                             key={persona} 
                             value={persona}
-                            disabled={selectedPersonas.includes(persona)}
+                            disabled={persona !== 'Other' && selectedPersonas.includes(persona)}
                           >
                             {persona} {selectedPersonas.includes(persona) && '✓'}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <div className="mt-3 space-y-2">
+                      <Label className="text-xs">Or add custom persona:</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="e.g., VP of Digital Innovation"
+                          value={customPersona}
+                          onChange={(e) => setCustomPersona(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomPersona())}
+                          className="text-sm"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={addCustomPersona}
+                          disabled={!customPersona.trim()}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Selected: {selectedPersonas.length} persona(s)
+                    Selected: {selectedPersonas.length} persona(s). Enterprise users can target niche roles across industries.
                   </p>
                 </div>
                 <div>
-                  <Label>Tone *</Label>
+                  <Label>Tone & Style *</Label>
                   <Select value={formData.tone} onValueChange={(value) => setFormData({ ...formData, tone: value })}>
                     <SelectTrigger data-testid="tone-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="data-driven">Data-Driven</SelectItem>
+                      <SelectItem value="formal-human">Formal / Human</SelectItem>
+                      <SelectItem value="cxo-pitch">CXO Pitch</SelectItem>
+                      <SelectItem value="challenger-style">Challenger-Style Persuasion</SelectItem>
+                      <SelectItem value="basho-style">BASHO-Style</SelectItem>
+                      <SelectItem value="z-poet">Z Poet</SelectItem>
+                      <SelectItem value="urgency-framing">Urgency-Framing Conversion</SelectItem>
+                      <SelectItem value="executive-briefing">Executive Briefing Style</SelectItem>
                       <SelectItem value="casual">Casual</SelectItem>
                       <SelectItem value="friendly">Friendly</SelectItem>
                       <SelectItem value="authoritative">Authoritative</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  <Label>Methodologies (comma-separated)</Label>
-                  <Input
-                    value={formData.methodologies}
-                    onChange={(e) => setFormData({ ...formData, methodologies: e.target.value })}
-                    placeholder="KISS, GAP, StoryBrand, PAS"
-                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Tone now includes persuasion frameworks for real-world GTM strategies
+                  </p>
                 </div>
                 <div className="flex gap-2 pt-4">
                   <Button type="submit" disabled={loading} data-testid="save-agent-button" className="flex-1">
