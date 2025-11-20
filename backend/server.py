@@ -1962,11 +1962,45 @@ async def generate_final_gtm_prompt(request: GTMFinalPromptRequest, current_user
     form_data = request.form_data
     validation = request.validation_result
 
-    # ============== 1. EXTRACT USER ADJUSTMENTS ==============
+    # ============== 1. EXTRACT AND REFINE USER ADJUSTMENTS ==============
     user_adjustments = form_data.get('user_adjustments', '')
     user_adjustments_section = ""
+    
     if user_adjustments:
-        user_adjustments_section = f"\n\n## 📝 Additional Details from User\n{user_adjustments}\n"
+        # Use AI to refine and structure user adjustments
+        refinement_prompt = f"""You are an expert at refining user input into professional microsite requirements.
+
+User provided these additional details:
+
+
+Your task:
+1. Extract key information about design preferences, content requirements, features, or any specific requests
+2. Organize them into clear, actionable points
+3. Remove any conversational filler ("please", "I want", "can you add", etc.)
+4. Keep technical terms and specific requirements intact
+5. Format as bullet points under relevant categories
+
+Categories to use (only include if relevant):
+- Design & UI: visual preferences, layout, colors, style
+- Content: specific text, messaging, tone adjustments
+- Features: interactive elements, functionality requests
+- Personalization: company-specific details (CEO, team, pricing, etc.)
+- Technical: integrations, performance requirements
+
+Output format:
+## Category Name
+- Specific requirement 1
+- Specific requirement 2
+
+Only include categories that have content. Be concise and professional."""
+        
+        try:
+            refined_adjustments = await generate_llm_response(refinement_prompt)
+            user_adjustments_section = f"\n\n## 📝 Additional Requirements\n{refined_adjustments}\n"
+        except Exception as e:
+            logger.error(f"Error refining user adjustments: {str(e)}")
+            # Fallback to original if refinement fails
+            user_adjustments_section = f"\n\n## 📝 Additional Details from User\n{user_adjustments}\n"
 
     # ============== 2. PROCESS MANDATORY CONFIGURATION INPUTS ==============
     # Process pain points
@@ -1977,11 +2011,31 @@ async def generate_final_gtm_prompt(request: GTMFinalPromptRequest, current_user
         pain_points_list = pain_points
     pain_points_text = "\n".join([f"- {pp}" for pp in pain_points_list])
     
-    # Process customer profile details
+    # Process and refine customer profile details
     customer_profile_details = form_data.get('customer_profile_details', '')
     customer_profile_section = ""
     if customer_profile_details:
-        customer_profile_section = f"\n\n## 👥 Customer Profile Details\n{customer_profile_details}\n"
+        # Refine customer profile details
+        profile_refinement_prompt = f"""Refine this customer profile information into clear, professional bullet points.
+
+User input:
+ 
+Extract and organize:
+- Customer demographics (company size, industry, location)
+- Buying behavior and decision-making process
+- Key stakeholders and their roles
+- Pain points and challenges
+- Budget considerations
+- Timeline and urgency
+
+Remove conversational language. Output as clean bullet points under relevant sub-headings.
+Only include sub-headings that have content."""
+        
+        try:
+            refined_profile = await generate_llm_response(profile_refinement_prompt)
+            customer_profile_section = f"\n\n## 👥 Customer Profile\n{refined_profile}\n"
+        except:
+            customer_profile_section = f"\n\n## 👥 Customer Profile Details\n{customer_profile_details}\n"
 
     # Process key features
     key_features = form_data.get('key_features', '')
