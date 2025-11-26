@@ -28,10 +28,17 @@ const INPUT_MODES = {
 
 const TONES = [
   { value: 'professional', label: 'Professional' },
-  { value: 'friendly', label: 'Friendly' },
-  { value: 'enthusiastic', label: 'Enthusiastic' },
+  { value: 'data-driven', label: 'Data-Driven' },
+  { value: 'formal-human', label: 'Formal / Human' },
+  { value: 'cxo-pitch', label: 'CXO Pitch' },
+  { value: 'challenger-style', label: 'Challenger-Style Persuasion' },
+  { value: 'basho-style', label: 'BASHO-Style' },
+  { value: 'z-poet', label: 'Z Poet' },
+  { value: 'urgency-framing', label: 'Urgency-Framing Conversion' },
+  { value: 'executive-briefing', label: 'Executive Briefing Style' },
   { value: 'casual', label: 'Casual' },
-  { value: 'formal', label: 'Formal' },
+  { value: 'friendly', label: 'Friendly' },
+  { value: 'authoritative', label: 'Authoritative' },
 ];
 
 const LENGTHS = [
@@ -59,6 +66,11 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
   const [length, setLength] = useState('Medium (100-200 words)');
   const [style, setStyle] = useState('linkedin');
 
+  // Case Studies state
+  const [selectedCaseStudies, setSelectedCaseStudies] = useState([]);
+  const [autoPickCaseStudies, setAutoPickCaseStudies] = useState(true);
+  const [availableDocuments, setAvailableDocuments] = useState([]);
+
   // Generated message state
   const [generatedMessage, setGeneratedMessage] = useState(null);
 
@@ -70,8 +82,30 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
     custom_input: '',
   });
 
+  useEffect(() => {
+    fetchAvailableDocuments();
+  }, []);
 
+  const fetchAvailableDocuments = async () => {
+    try {
+      const response = await axios.get(`${API}/document-files/for-campaign`);
+      setAvailableDocuments(response.data.documents || []);
+      if (response.data.documents?.length > 0) {
+        toast.success(`Loaded ${response.data.documents.length} case studies`);
+      }
+    } catch (error) {
+      console.error('Failed to fetch documents:', error);
+      // Silently fail - documents are optional
+    }
+  };
 
+  const toggleCaseStudy = (docId) => {
+    setSelectedCaseStudies(prev =>
+      prev.includes(docId)
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    );
+  };
 
   const handleGenerate = async () => {
     // Validation
@@ -91,12 +125,15 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
 
     const payload = {
       origin_url: inputMode === INPUT_MODES.URL ? formData.origin_url : 'custom_message',
-
       keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
       notes: inputMode === INPUT_MODES.MESSAGE
         ? `${formData.custom_input}\n\nBase message: ${customMessage}\nTone: ${tone}\nLength: ${length}\nStyle: ${style}`
         : formData.custom_input,
-//      sender_profile: userProfile,
+      tone: tone,
+      length: length,
+      style: style,
+      selected_case_studies: selectedCaseStudies,
+      auto_pick_case_studies: autoPickCaseStudies,
     };
 
     try {
@@ -313,6 +350,67 @@ const PersonalizationAssistant = ({ user, onLogout }) => {
                         placeholder="Any specific instructions or context..."
                         rows={3}
                       />
+                    </div>
+                  </Card>
+
+                  {/* Case Studies Selection */}
+                  <Card className="p-6 bg-white">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-lg font-semibold">Case Studies</Label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="auto-pick-case-studies"
+                            checked={autoPickCaseStudies}
+                            onChange={(e) => {
+                              setAutoPickCaseStudies(e.target.checked);
+                              if (e.target.checked) {
+                                setSelectedCaseStudies([]);
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <label htmlFor="auto-pick-case-studies" className="cursor-pointer text-sm">
+                            Auto Pick
+                          </label>
+                        </div>
+                      </div>
+
+                      {!autoPickCaseStudies && (
+                        <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 bg-white">
+                          {availableDocuments.length === 0 ? (
+                            <p className="text-sm text-slate-500">No case studies available</p>
+                          ) : (
+                            availableDocuments.map(doc => (
+                              <div
+                                key={doc.id}
+                                className="flex items-start gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                                onClick={() => toggleCaseStudy(doc.id)}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCaseStudies.includes(doc.id)}
+                                  onChange={() => {}} // Handled by parent onClick
+                                  className="mt-1"
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm">{doc.title}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {doc.category} • {doc.doc_type}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+
+                      {autoPickCaseStudies && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                          ✨ Case studies will be automatically selected based on your message context
+                        </div>
+                      )}
                     </div>
                   </Card>
 

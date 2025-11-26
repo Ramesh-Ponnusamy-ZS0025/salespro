@@ -111,15 +111,7 @@ const DocumentGenerator = ({ user, onLogout }) => {
           required
         />
       </div>
-      <div>
-        <Label>Customer Company Name *</Label>
-        <Input
-          value={variables.customer_company_name || ''}
-          onChange={(e) => setVariables({ ...variables, customer_company_name: e.target.value })}
-          placeholder="ABC Corporation"
-          required
-        />
-      </div>
+
       <div>
         <Label>Customer Company Address *</Label>
         <Textarea
@@ -181,24 +173,8 @@ const DocumentGenerator = ({ user, onLogout }) => {
           required
         />
       </div>
-      <div>
-        <Label>Point of Contact *</Label>
-        <Input
-          value={variables.point_of_contact || ''}
-          onChange={(e) => setVariables({ ...variables, point_of_contact: e.target.value })}
-          placeholder="Jane Smith"
-          required
-        />
-      </div>
-      <div>
-        <Label>Customer Company Name *</Label>
-        <Input
-          value={variables.customer_company_name || ''}
-          onChange={(e) => setVariables({ ...variables, customer_company_name: e.target.value })}
-          placeholder="ABC Corporation"
-          required
-        />
-      </div>
+
+
       <div>
         <Label>Title *</Label>
         <Input
