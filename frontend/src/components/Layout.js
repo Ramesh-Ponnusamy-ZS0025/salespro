@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Megaphone, MessageSquare, Mail, FileText, Globe, TrendingUp, Bookmark, FolderOpen, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageSquare, Mail, FileText, Globe, TrendingUp, Bookmark, FolderOpen, LogOut, Newspaper, ChevronDown, ChevronRight } from 'lucide-react';
 
 const Layout = ({ children, user, onLogout }) => {
   const location = useLocation();
+  const [expandedMenus, setExpandedMenus] = useState({});
 
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -13,11 +14,26 @@ const Layout = ({ children, user, onLogout }) => {
     { path: '/thread-intelligence', icon: Mail, label: 'Thread Intelligence' },
     { path: '/gtm', icon: Globe, label: 'GTM Generator' },
     { path: '/documents', icon: FileText, label: 'Documents' },
-
-   // { path: '/learning', icon: TrendingUp, label: 'Learning Hub' },
-    //{ path: '/saved', icon: Bookmark, label: 'Saved Items' },
-    { path: '/document-management', icon: FolderOpen, label: 'Document Management' },
+    {
+      label: 'Content Management',
+      icon: FolderOpen,
+      submenu: [
+        { path: '/zuci-news', icon: Newspaper, label: 'Zuci News' },
+        { path: '/document-management', icon: FileText, label: 'Case Studies' },
+      ]
+    },
   ];
+
+  const toggleSubmenu = (label) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [label]: !prev[label]
+    }));
+  };
+
+  const isSubmenuActive = (submenu) => {
+    return submenu.some(item => location.pathname === item.path);
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50" data-testid="layout-container">
@@ -31,24 +47,73 @@ const Layout = ({ children, user, onLogout }) => {
         </div>
 
         <nav className="flex-1 p-4 overflow-y-auto" data-testid="sidebar-nav">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                data-testid={`nav-link-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-all duration-200 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-200'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <Icon size={20} />
-                <span className="font-medium text-sm">{item.label}</span>
-              </Link>
-            );
+          {navItems.map((item, index) => {
+            if (item.submenu) {
+              // Menu item with submenu
+              const Icon = item.icon;
+              const isExpanded = expandedMenus[item.label];
+              const hasActiveChild = isSubmenuActive(item.submenu);
+
+              return (
+                <div key={`submenu-${index}`}>
+                  <button
+                    onClick={() => toggleSubmenu(item.label)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-all duration-200 ${
+                      hasActiveChild
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon size={20} />
+                    <span className="font-medium text-sm flex-1 text-left">{item.label}</span>
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+
+                  {/* Submenu items */}
+                  {isExpanded && (
+                    <div className="ml-4 mb-2 space-y-1">
+                      {item.submenu.map((subItem) => {
+                        const SubIcon = subItem.icon;
+                        const isActive = location.pathname === subItem.path;
+                        return (
+                          <Link
+                            key={subItem.path}
+                            to={subItem.path}
+                            className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                              isActive
+                                ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-200'
+                                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            }`}
+                          >
+                            <SubIcon size={18} />
+                            <span className="font-medium text-sm">{subItem.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            } else {
+              // Regular menu item
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  data-testid={`nav-link-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-all duration-200 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-200'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon size={20} />
+                  <span className="font-medium text-sm">{item.label}</span>
+                </Link>
+              );
+            }
           })}
         </nav>
 
