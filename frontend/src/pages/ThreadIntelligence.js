@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Layout from '../components/Layout';
 import { toast } from 'sonner';
-import { Sparkles, Mail, FileText, Check, Cloud, RefreshCw } from 'lucide-react';
+import { Sparkles, Mail, FileText } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Card } from '../components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
   ResizablePanel,
   ResizablePanelGroup,
@@ -16,76 +17,55 @@ import {
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Tone options - consistent with Agent Builder
+const TONE_OPTIONS = [
+  { value: 'professional', label: 'Professional', description: 'Formal, polished business communication. Respectful and direct.' },
+  { value: 'data-driven', label: 'Data-Driven', description: 'Lead with metrics, ROI, quantifiable outcomes. Use specific numbers.' },
+  { value: 'formal-human', label: 'Formal / Human', description: 'Professional yet personable. Balance formality with warmth.' },
+  { value: 'cxo-pitch', label: 'CXO Pitch', description: 'Strategic, executive-level language. Address business priorities.' },
+  { value: 'challenger-style', label: 'Challenger-Style', description: 'Challenge status quo. Teach, tailor, and take control.' },
+  { value: 'basho-style', label: 'BASHO-Style', description: 'Build rapport first. Personalized, research-driven approach.' },
+  { value: 'z-poet', label: 'Z Poet', description: 'Creative, memorable messaging with metaphors and storytelling.' },
+  { value: 'urgency-framing', label: 'Urgency-Framing', description: 'Create time-sensitive value. Emphasize FOMO and immediate benefits.' },
+  { value: 'executive-briefing', label: 'Executive Briefing', description: 'Concise, high-level strategic communication. Bottom-line focused.' },
+  { value: 'casual', label: 'Casual', description: 'Conversational and approachable. Friendly tone while maintaining respect.' },
+  { value: 'friendly', label: 'Friendly', description: 'Warm and personable. Build connection through empathy.' },
+  { value: 'authoritative', label: 'Authoritative', description: 'Confident and expert-driven. Establish credibility and thought leadership.' },
+  { value: 'consultative', label: 'Consultative', description: 'Advisory approach. Position as trusted partner offering solutions.' },
+  { value: 'concise', label: 'Concise', description: 'Brief, direct messaging. Clear value proposition in minimal words.' },
+];
+
 const ThreadIntelligence = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [threadText, setThreadText] = useState('');
   const [customInputs, setCustomInputs] = useState('');
-  const [selectedCaseStudy, setSelectedCaseStudy] = useState('');
-  const [cloudConfigured, setCloudConfigured] = useState(false);
-  const [cloudFiles, setCloudFiles] = useState([]);
-
-  // Case study categories that match folders in cloud storage
-  const caseStudyCategories = [
-    { id: 'technology', title: 'Technology', industry: 'Technology' },
-    { id: 'healthcare', title: 'Healthcare', industry: 'Healthcare' },
-    { id: 'finance', title: 'Finance', industry: 'Finance' },
-    { id: 'manufacturing', title: 'Manufacturing', industry: 'Manufacturing' },
-    { id: 'retail', title: 'Retail', industry: 'Retail' },
-  ];
+  const [selectedTone, setSelectedTone] = useState('professional');
+  const [selectedCaseStudies, setSelectedCaseStudies] = useState([]);
+  const [autoPickCaseStudies, setAutoPickCaseStudies] = useState(true);
+  const [availableDocuments, setAvailableDocuments] = useState([]);
 
   useEffect(() => {
-    checkCloudConfig();
+    fetchAvailableDocuments();
   }, []);
 
-  const checkCloudConfig = async () => {
+  // Fetch available documents/case studies - consistent with Campaign Builder
+  const fetchAvailableDocuments = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API}/cloud-storage/config`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setCloudConfigured(response.data.configured);
+      const response = await axios.get(`${API}/document-files/for-campaign`);
+      setAvailableDocuments(response.data.documents || []);
     } catch (error) {
-      console.error('Failed to check cloud config:', error);
+      console.error('Failed to fetch documents:', error);
     }
   };
 
-  const fetchCloudFiles = async (category) => {
-    if (!cloudConfigured) {
-      toast.error('Please configure cloud storage in Settings first');
-      return;
-    }
-
-    setLoadingFiles(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(
-        `${API}/cloud-storage/files/by-category?category=${category}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      setCloudFiles(response.data.files || []);
-      
-      if (response.data.files.length === 0) {
-        toast.info(`No files found in ${category} category`);
-      } else {
-        toast.success(`Found ${response.data.files.length} files`);
-      }
-    } catch (error) {
-      toast.error('Failed to fetch files from cloud storage');
-      console.error(error);
-    } finally {
-      setLoadingFiles(false);
-    }
-  };
-
-  const handleCategorySelect = async (categoryId) => {
-    setSelectedCaseStudy(categoryId);
-    // Fetch files from cloud storage for this category
-    await fetchCloudFiles(categoryId);
+  const toggleCaseStudy = (docId) => {
+    setSelectedCaseStudies(prev =>
+      prev.includes(docId)
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    );
   };
 
   const handleAnalyze = async () => {
@@ -99,7 +79,9 @@ const ThreadIntelligence = ({ user, onLogout }) => {
       const response = await axios.post(`${API}/thread/analyze`, {
         thread_text: threadText,
         custom_inputs: customInputs,
-        case_study_id: selectedCaseStudy,
+        tone: selectedTone,
+        selected_case_studies: selectedCaseStudies,
+        auto_pick_case_studies: autoPickCaseStudies,
       });
 
       setAnalysis(response.data);
@@ -153,24 +135,6 @@ const ThreadIntelligence = ({ user, onLogout }) => {
                 Analyze email threads and generate contextual follow-ups
               </p>
             </div>
-            
-            {/* Cloud Status */}
-            <div className="flex items-center gap-2">
-              {cloudConfigured ? (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
-                  <Cloud className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-700 font-medium">Cloud Connected</span>
-                </div>
-              ) : (
-                <a
-                  href="/settings"
-                  className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100"
-                >
-                  <Cloud className="w-4 h-4 text-orange-600" />
-                  <span className="text-sm text-orange-700 font-medium">Configure Cloud</span>
-                </a>
-              )}
-            </div>
           </div>
         </div>
 
@@ -204,70 +168,83 @@ const ThreadIntelligence = ({ user, onLogout }) => {
                 />
               </Card>
 
-              {/* CASE STUDY CATEGORIES - Cloud Integrated */}
+              {/* TONE SELECTION - Dropdown */}
               <Card className="p-6 bg-white">
-                <div className="flex items-center justify-between mb-3">
-                  <Label>Select Relevant Case Study</Label>
-                  {cloudConfigured && (
-                    <Cloud className="w-4 h-4 text-blue-600" />
-                  )}
-                </div>
-                
-                <div className="border border-slate-200 rounded-md p-3 bg-white max-h-48 overflow-y-auto">
-                  {caseStudyCategories.map((category) => (
-                    <div
-                      key={category.id}
-                      onClick={() => handleCategorySelect(category.id)}
-                      className={`p-3 mb-2 rounded-lg border-2 cursor-pointer transition-all ${
-                        selectedCaseStudy === category.id
-                          ? 'border-indigo-600 bg-indigo-50'
-                          : 'border-slate-200 hover:border-indigo-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm text-slate-900">{category.title}</p>
-                          <p className="text-xs text-slate-600 mt-1">{category.industry}</p>
-                        </div>
-                        {selectedCaseStudy === category.id && (
-                          <FileText size={16} className="text-indigo-600" />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Show loading state when fetching files */}
-                {loadingFiles && (
-                  <div className="flex items-center gap-2 mt-3 text-sm text-blue-600">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Loading files from cloud storage...</span>
-                  </div>
-                )}
-
-                {/* Show cloud files if available */}
-                {cloudFiles.length > 0 && (
-                  <div className="mt-3 p-3 bg-blue-50 rounded-md border border-blue-200">
-                    <p className="text-xs font-semibold text-blue-900 mb-2">
-                      Files found ({cloudFiles.length}):
-                    </p>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {cloudFiles.map((file) => (
-                        <div key={file.id} className="text-xs text-blue-800 flex items-center gap-2">
-                          <FileText className="w-3 h-3" />
-                          <span>{file.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
+                <Label className="text-sm font-medium mb-3 block">Response Tone</Label>
+                <Select value={selectedTone} onValueChange={setSelectedTone}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select tone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TONE_OPTIONS.map((tone) => (
+                      <SelectItem key={tone.value} value={tone.value}>
+                        {tone.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-slate-500 mt-2">
-                  {cloudConfigured 
-                    ? 'Files will be fetched from your connected cloud storage'
-                    : 'Configure cloud storage in Settings to access files'
-                  }
+                  {TONE_OPTIONS.find(t => t.value === selectedTone)?.description}
                 </p>
+              </Card>
+
+              {/* CASE STUDIES - Consistent with Campaign Builder */}
+              <Card className="p-6 bg-white">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-medium">Case Studies & Documents</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="auto-pick-cs"
+                      checked={autoPickCaseStudies}
+                      onChange={(e) => {
+                        setAutoPickCaseStudies(e.target.checked);
+                        if (e.target.checked) {
+                          setSelectedCaseStudies([]);
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <label htmlFor="auto-pick-cs" className="cursor-pointer text-sm">
+                      Auto Pick
+                    </label>
+                  </div>
+                </div>
+
+                {!autoPickCaseStudies && (
+                  <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 bg-white">
+                    {availableDocuments.length === 0 ? (
+                      <p className="text-sm text-slate-500">No documents available</p>
+                    ) : (
+                      availableDocuments.map(doc => (
+                        <div
+                          key={doc.id}
+                          className="flex items-start gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                          onClick={() => toggleCaseStudy(doc.id)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCaseStudies.includes(doc.id)}
+                            onChange={() => {}} // Handled by parent onClick
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{doc.title}</div>
+                            <div className="text-xs text-slate-500">
+                              {doc.category} • {doc.doc_type}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {autoPickCaseStudies && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                    ✨ Case studies will be automatically selected based on thread context
+                  </div>
+                )}
               </Card>
 
               {/* ANALYZE BUTTON */}

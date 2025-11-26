@@ -1,0 +1,14 @@
+# Vector Database Requirements for Fast Case Study Matching
+
+# Core embedding library
+sentence-transformers>=2.2.0
+
+# Dependencies (auto-installed with sentence-transformers, but listed for clarity)
+torch>=2.0.0
+transformers>=4.30.0
+numpy>=1.21.0
+
+# Already in main requirements
+# fastapi
+# motor (MongoDB)
+# groq
