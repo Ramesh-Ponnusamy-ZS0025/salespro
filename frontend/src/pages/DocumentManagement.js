@@ -291,28 +291,52 @@ const DocumentManagement = ({ user, onLogout }) => {
   };
 
   const handleScrapeZuciCaseStudies = async () => {
-    if (!window.confirm('This will scrape case studies from Zuci Systems website and add them to your documents. This may take a few minutes. Continue?')) return;
+    if (!window.confirm('This will scrape case studies from Zuci Systems website and add them to your documents. This may take 3-5 minutes. Continue?')) return;
 
     setScrapingZuci(true);
-    toast.loading('Scraping Zuci case studies...', { id: 'scraping' });
+    toast.loading('Scraping case studies with Playwright... Please wait, this may take several minutes.', { id: 'scraping' });
 
     try {
-      const response = await axios.post(`${API}/document-files/scrape-zuci-case-studies`);
-      
+      // Add longer timeout for scraping (5 minutes)
+      const response = await axios.post(
+        `${API}/document-files/scrape-zuci-case-studies`,
+        {},
+        {
+          timeout: 300000, // 5 minutes
+          onUploadProgress: (progressEvent) => {
+            // Optional: Show progress if backend supports it
+            console.log('Scraping in progress...');
+          }
+        }
+      );
+
       if (response.data.success) {
+        const { total_saved, total_updated, total_found, vector_db_count } = response.data;
+        const vectorDbInfo = vector_db_count ? ` | ${vector_db_count} embeddings for semantic search` : '';
         toast.success(
-          `Successfully scraped ${response.data.total_saved} case studies!`,
-          { id: 'scraping' }
+          `Successfully processed ${total_saved + total_updated} case studies! (${total_saved} new, ${total_updated} updated)${vectorDbInfo}`,
+          { id: 'scraping', duration: 6000 }
         );
         fetchDocuments();
       } else {
-        toast.error(response.data.message || 'Failed to scrape case studies', { id: 'scraping' });
+        toast.error(response.data.message || 'No case studies found', { id: 'scraping' });
       }
     } catch (error) {
-      toast.error(
-        error.response?.data?.detail || 'Failed to scrape case studies',
-        { id: 'scraping' }
-      );
+      console.error('Scraping error:', error);
+
+      let errorMessage = 'Failed to scrape case studies';
+
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        errorMessage = 'Request timed out. The server might still be processing. Please wait a moment and refresh.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied (403). Website blocking detected. Make sure Playwright is installed.';
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage, { id: 'scraping', duration: 7000 });
     } finally {
       setScrapingZuci(false);
     }
@@ -525,12 +549,13 @@ const DocumentManagement = ({ user, onLogout }) => {
                 onClick={handleScrapeZuciCaseStudies}
                 disabled={scrapingZuci}
                 variant="outline"
-                className="border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                className="border-indigo-600 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+                title={scrapingZuci ? "Scraping in progress... This may take 3-5 minutes" : "Scrape case studies from Zuci Systems website"}
               >
                 {scrapingZuci ? (
                   <>
                     <Loader size={16} className="mr-2 animate-spin" />
-                    Scraping...
+                    Scraping (3-5 min)...
                   </>
                 ) : (
                   <>

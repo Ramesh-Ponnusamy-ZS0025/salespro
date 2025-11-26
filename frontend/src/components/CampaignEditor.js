@@ -56,6 +56,8 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
   const [autoPickDocuments, setAutoPickDocuments] = useState(campaign?.auto_pick_documents || false);
   const [availableDocuments, setAvailableDocuments] = useState([]);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
+  const [draggedStep, setDraggedStep] = useState(null);
+  const [dragOverStep, setDragOverStep] = useState(null);
 
   const [formData, setFormData] = useState({
     campaign_name: campaign?.campaign_name || '',
@@ -205,17 +207,113 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
   };
 
   const handleEditConfig = () => setConfigConfirmed(false);
+
   const handleSaveAll = async () => {
-    toast.success('Campaign saved successfully!');
-    onBack();
+    try {
+      setLoading(true);
+      // Save the current step order to backend
+      if (sequence?.steps?.length > 0) {
+        const stepOrder = sequence.steps.map((step, index) => ({
+          step_number: step.step_number,
+          new_position: index + 1,
+          channel: step.channel,
+          day: step.day,
+          content: step.content
+        }));
+
+        await axios.put(`${API}/campaigns/${currentCampaign.id}/sequence/reorder`, { step_order: stepOrder });
+        toast.success('Campaign order saved successfully!');
+        // Refetch to ensure we have the latest data
+        await fetchSequence();
+      } else {
+        toast.success('Campaign saved successfully!');
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error('Failed to save campaign order');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Drag and Drop Handlers
+  const handleDragStart = (e, step, index) => {
+    setDraggedStep(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverStep(index);
+  };
+
+  const handleDragLeave = (e) => {
+    setDragOverStep(null);
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    setDragOverStep(null);
+
+    if (draggedStep === null || draggedStep === dropIndex) {
+      setDraggedStep(null);
+      return;
+    }
+
+    // Reorder steps
+    const newSteps = [...sequence.steps];
+    const [draggedItem] = newSteps.splice(draggedStep, 1);
+    newSteps.splice(dropIndex, 0, draggedItem);
+
+    // Update step numbers to reflect new order
+    const reorderedSteps = newSteps.map((step, index) => ({
+      ...step,
+      step_number: index + 1
+    }));
+
+    setSequence({ ...sequence, steps: reorderedSteps });
+    setDraggedStep(null);
+    toast.success('Steps reordered! Click "Save Campaign" to persist changes.');
+  };
+
+  const handleDragEnd = () => {
+    setDraggedStep(null);
+    setDragOverStep(null);
   };
 
   const handleGenerateContent = async (stepNumber) => {
     setGeneratingStep(stepNumber);
     try {
+      // Store current order before fetching
+      const currentOrder = sequence?.steps ? [...sequence.steps] : [];
+
       await axios.post(`${API}/campaigns/${currentCampaign.id}/sequence/steps/${stepNumber}/generate`);
       toast.success('Content generated!');
-      await fetchSequence();
+
+      // Fetch updated sequence
+      const response = await axios.get(`${API}/campaigns/${currentCampaign.id}/sequence`);
+      const updatedSequence = response.data;
+
+      // If we have a local drag order, preserve it
+      if (currentOrder.length > 0 && updatedSequence?.steps) {
+        // Create a map of step_number to updated step data
+        const updatedStepMap = {};
+        updatedSequence.steps.forEach(step => {
+          updatedStepMap[step.step_number] = step;
+        });
+
+        // Apply updates while preserving local order
+        const reorderedSteps = currentOrder.map(localStep => {
+          const updatedStep = updatedStepMap[localStep.step_number];
+          return updatedStep ? { ...localStep, content: updatedStep.content } : localStep;
+        });
+
+        setSequence({ ...updatedSequence, steps: reorderedSteps });
+      } else {
+        setSequence(updatedSequence);
+      }
     } catch {
       toast.error('Failed to generate content');
     } finally {
@@ -230,10 +328,25 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
 
   const handleSaveEdit = async () => {
     try {
+      // Store current order before updating
+      const currentOrder = sequence?.steps ? [...sequence.steps] : [];
+
       await axios.put(`${API}/campaigns/${currentCampaign.id}/sequence/steps/${editingStep.step_number}`, { content: editContent });
       toast.success('Content updated!');
+
+      // Update the local sequence with new content while preserving order
+      if (currentOrder.length > 0) {
+        const updatedSteps = currentOrder.map(step =>
+          step.step_number === editingStep.step_number
+            ? { ...step, content: editContent }
+            : step
+        );
+        setSequence({ ...sequence, steps: updatedSteps });
+      } else {
+        await fetchSequence();
+      }
+
       setEditingStep(null);
-      await fetchSequence();
     } catch {
       toast.error('Failed to update content');
     }
@@ -469,10 +582,10 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                     </div>
                   </Card>
 
-                  {/* Case Studies Picker Section */}
+                  {/* Case Studies Picker Section - Consistent with GTM Generator */}
                   <Card className="p-6 bg-white">
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-2">
                         <Label className="text-lg font-semibold">Case Studies & Documents</Label>
                         <div className="flex items-center gap-2">
                           <input
@@ -488,27 +601,27 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                             className="rounded"
                             disabled={configConfirmed}
                           />
-                          <Label htmlFor="auto-pick" className="cursor-pointer text-sm">
-                            Pick automatically
-                          </Label>
+                          <label htmlFor="auto-pick" className="cursor-pointer text-sm">
+                            Auto Pick
+                          </label>
                         </div>
                       </div>
-                      
+
                       {!autoPickDocuments && (
-                        <div className="border rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
+                        <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 bg-white">
                           {availableDocuments.length === 0 ? (
                             <p className="text-sm text-slate-500">No documents available</p>
                           ) : (
                             availableDocuments.map(doc => (
                               <div
                                 key={doc.id}
-                                className="flex items-start gap-3 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                                className="flex items-start gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
                                 onClick={() => !configConfirmed && toggleDocument(doc.id)}
                               >
                                 <input
                                   type="checkbox"
                                   checked={selectedDocuments.includes(doc.id)}
-                                  onChange={() => toggleDocument(doc.id)}
+                                  onChange={() => {}} // Handled by parent onClick
                                   className="mt-1"
                                   disabled={configConfirmed}
                                 />
@@ -523,11 +636,10 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                           )}
                         </div>
                       )}
-                      
+
                       {autoPickDocuments && (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                          <AlertTriangle size={16} className="inline mr-2" />
-                          Documents will be automatically selected based on campaign relevance
+                          ✨ Documents will be automatically selected based on campaign relevance
                         </div>
                       )}
                     </div>
@@ -636,21 +748,41 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                     {sequence?.steps?.length ? (
                       <div className="space-y-4">
                         {sequence.steps.map((step, index) => (
-                          <Card key={step.step_number} className="p-4 flex justify-between items-start bg-slate-50 border border-slate-200">
-                            <div className="flex items-start gap-4">
-                              <div className={`w-10 h-10 flex items-center justify-center rounded-full ${getChannelColor(step.channel)}`}>
-                                {getChannelIcon(step.channel)}
+                          <Card
+                            key={step.step_number}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, step, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, index)}
+                            onDragEnd={handleDragEnd}
+                            className={`p-4 flex justify-between items-start transition-all duration-200 cursor-move
+                              ${draggedStep === index ? 'opacity-50 scale-95' : 'opacity-100'}
+                              ${dragOverStep === index && draggedStep !== index ? 'border-2 border-indigo-500 bg-indigo-50' : 'bg-slate-50 border border-slate-200'}
+                            `}
+                          >
+                            <div className="flex items-start gap-4 flex-1">
+                              <div className="flex flex-col items-center gap-1">
+                                <div className={`w-10 h-10 flex items-center justify-center rounded-full ${getChannelColor(step.channel)}`}>
+                                  {getChannelIcon(step.channel)}
+                                </div>
+                                {/* Drag handle indicator */}
+                                <div className="flex flex-col gap-0.5 cursor-grab active:cursor-grabbing">
+                                  <div className="w-4 h-0.5 bg-slate-300 rounded"></div>
+                                  <div className="w-4 h-0.5 bg-slate-300 rounded"></div>
+                                  <div className="w-4 h-0.5 bg-slate-300 rounded"></div>
+                                </div>
                               </div>
-                              <div>
+                              <div className="flex-1">
                                 <p className="text-sm font-semibold text-slate-900 mb-1">
-                                  Step {step.step_number}: {capitalizeFirst(step.channel)}
+                                  Step {index + 1}: {capitalizeFirst(step.channel)}
                                 </p>
-                                <p className="text-xs text-slate-600">
+                                <p className="text-xs text-slate-600 line-clamp-2">
                                   {step.content || 'No content generated yet'}
                                 </p>
                               </div>
                             </div>
-                            <div className="flex flex-col gap-2 items-end">
+                            <div className="flex flex-col gap-2 items-end ml-4">
                               {!step.content && (
                                 <Button
                                   size="sm"
