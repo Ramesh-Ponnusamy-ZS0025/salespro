@@ -51,6 +51,13 @@ class MSADocumentRequest(BaseModel):
     title: str
     name: str
 
+class NDADocumentRequest(BaseModel):
+    date: str
+    company_name: str
+    customer_company_address: str
+    title: str
+    name: str
+
 class DocumentResponse(BaseModel):
     id: str
     template_type: str
@@ -214,7 +221,12 @@ async def generate_msa_document(request: MSADocumentRequest, current_user: User 
         temp_dir = Path(tempfile.mkdtemp())
 
         try:
-            filled_docx_path = temp_dir / f"MSA_{doc_id}.docx"
+            # Generate filename: MSA_CompanyName_timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_company_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in request.company_name)
+            safe_company_name = safe_company_name.replace(' ', '_')
+            filename = f"MSA_{safe_company_name}_{timestamp}.docx"
+            filled_docx_path = temp_dir / filename
 
             # Open template and merge fields
             document = MailMerge(str(template_path))
@@ -249,6 +261,8 @@ async def generate_msa_document(request: MSADocumentRequest, current_user: User 
                 "engagement_model": "custom",
                 "variables": request.model_dump(),
                 "doc_url": "generated",
+                "doc_base64": docx_base64,
+                "filename": filename,
                 "status": "generated",
                 "created_by": current_user.id,
                 "created_at": datetime.now(timezone.utc).isoformat()
@@ -260,6 +274,7 @@ async def generate_msa_document(request: MSADocumentRequest, current_user: User 
                 "id": doc_id,
                 "doc_base64": docx_base64,
                 "template_type": "msa",
+                "filename": filename,
                 "message": "Document generated successfully"
             }
 
@@ -286,6 +301,109 @@ async def preview_msa_template(current_user: User = Depends(get_current_user)):
         return {
             "merge_fields": list(merge_fields),
             "template_name": "Zuci MSA Template.docx"
+        }
+    except Exception as e:
+        logger.error(f"Error reading template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to read template: {str(e)}")
+
+# ============== NDA DOCUMENT GENERATION ==============
+
+@router.post("/documents/nda/generate")
+async def generate_nda_document(request: NDADocumentRequest, current_user: User = Depends(get_current_user)):
+    """Generate NDA document from template and return DOCX"""
+    doc_id = str(uuid.uuid4())
+
+    try:
+        # Path to template (note: .doc extension as user specified)
+        template_path = ROOT_DIR.parent / "Zuci_NDA_Template.docx"
+        print(template_path)
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="NDA template not found")
+
+        # Create temporary directory for file operations
+        temp_dir = Path(tempfile.mkdtemp())
+
+        try:
+            # Generate filename: NDA_CompanyName_timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_company_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in request.company_name)
+            safe_company_name = safe_company_name.replace(' ', '_')
+            filename = f"NDA_{safe_company_name}_{timestamp}.docx"
+            filled_docx_path = temp_dir / filename
+
+            # Open template and merge fields
+            document = MailMerge(str(template_path))
+
+            # Prepare merge fields
+            merge_fields = {
+                "date": format_date_string(request.date),
+                "company_name": sanitize_field(request.company_name),
+                "customer_company_address": sanitize_field(request.customer_company_address),
+                "title": sanitize_field(request.title),
+                "name": sanitize_field(request.name),
+            }
+
+            # Get all merge fields from template and fill missing ones
+            template_fields = document.get_merge_fields()
+            for field in template_fields:
+                if field not in merge_fields:
+                    merge_fields[field] = "<To Be Filled>"
+
+            # Merge and save
+            document.merge(**merge_fields)
+            document.write(str(filled_docx_path))
+
+            # Read DOCX and encode to base64
+            with open(filled_docx_path, 'rb') as f:
+                docx_content = f.read()
+                docx_base64 = base64.b64encode(docx_content).decode('utf-8')
+
+            doc_record = {
+                "id": doc_id,
+                "template_type": "nda",
+                "engagement_model": "custom",
+                "variables": request.model_dump(),
+                "doc_url": "generated",
+                "doc_base64": docx_base64,
+                "filename": filename,
+                "status": "generated",
+                "created_by": current_user.id,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+
+            await db.documents.insert_one(doc_record)
+
+            return {
+                "id": doc_id,
+                "doc_base64": docx_base64,
+                "template_type": "nda",
+                "filename": filename,
+                "message": "Document generated successfully"
+            }
+
+        finally:
+            # Cleanup temp directory
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        logger.error(f"Error generating NDA document: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate document: {str(e)}")
+
+@router.get("/documents/nda/preview")
+async def preview_nda_template(current_user: User = Depends(get_current_user)):
+    """Get merge fields from NDA template"""
+    try:
+        template_path = ROOT_DIR.parent / "Zuci_NDA_Template.doc"
+
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="NDA template not found")
+
+        document = MailMerge(str(template_path))
+        merge_fields = document.get_merge_fields()
+
+        return {
+            "merge_fields": list(merge_fields),
+            "template_name": "Zuci_NDA_Template.doc"
         }
     except Exception as e:
         logger.error(f"Error reading template: {str(e)}")

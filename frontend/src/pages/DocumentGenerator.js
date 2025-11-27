@@ -24,6 +24,7 @@ const DocumentGenerator = ({ user, onLogout }) => {
   const [variables, setVariables] = useState({});
   const [showDocxModal, setShowDocxModal] = useState(false);
   const [currentDocBase64, setCurrentDocBase64] = useState('');
+  const [currentFilename, setCurrentFilename] = useState('');
   const previewRef = useRef(null);
 
   useEffect(() => {
@@ -47,6 +48,8 @@ const DocumentGenerator = ({ user, onLogout }) => {
       let response;
       if (templateType === 'msa') {
         response = await axios.post(`${API}/documents/msa/generate`, variables);
+      } else if (templateType === 'nda') {
+        response = await axios.post(`${API}/documents/nda/generate`, variables);
       } else {
         response = await axios.post(`${API}/documents/generate`, {
           template_type: templateType,
@@ -65,6 +68,7 @@ const DocumentGenerator = ({ user, onLogout }) => {
 
       // Preview DOCX
       setCurrentDocBase64(response.data.doc_base64);
+      setCurrentFilename(response.data.filename || `${response.data.template_type}_document.docx`);
       setShowDocxModal(true);
       
       // Wait for modal to render, then show preview
@@ -111,7 +115,15 @@ const DocumentGenerator = ({ user, onLogout }) => {
           required
         />
       </div>
-
+      <div>
+        <Label>Company Name *</Label>
+        <Input
+          value={variables.company_name || ''}
+          onChange={(e) => setVariables({ ...variables, company_name: e.target.value })}
+          placeholder="Acme Corporation"
+          required
+        />
+      </div>
       <div>
         <Label>Customer Company Address *</Label>
         <Textarea
@@ -322,13 +334,14 @@ const DocumentGenerator = ({ user, onLogout }) => {
                   <div className="space-y-3">
                     {documents.slice(0, 5).map(doc => (
                       <div key={doc.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center">
-                        <div>
+                        <div className="flex-1">
                           <p className="font-semibold text-sm">{doc.template_type.toUpperCase()}</p>
-                          <p className="text-xs text-slate-600">{doc.engagement_model}</p>
+                          <p className="text-xs text-slate-600 truncate">{doc.filename || `${doc.template_type}_document.docx`}</p>
+                          <p className="text-xs text-slate-400">{doc.variables?.company_name || 'N/A'}</p>
                         </div>
                         <Download
                           size={16}
-                          className="text-indigo-600 cursor-pointer"
+                          className="text-indigo-600 cursor-pointer hover:text-indigo-800"
                           onClick={() => {
                             if (doc.doc_base64) {
                               const byteCharacters = atob(doc.doc_base64);
@@ -337,8 +350,10 @@ const DocumentGenerator = ({ user, onLogout }) => {
                               const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
                               const link = document.createElement('a');
                               link.href = URL.createObjectURL(blob);
-                              link.download = `${doc.template_type}_${Date.now()}.docx`;
+                              link.download = doc.filename || `${doc.template_type}_${Date.now()}.docx`;
                               link.click();
+                            } else {
+                              toast.error('Document content not available');
                             }
                           }}
                         />
@@ -369,7 +384,7 @@ const DocumentGenerator = ({ user, onLogout }) => {
                         const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(blob);
-                        link.download = `${templateType}_${Date.now()}.docx`;
+                        link.download = currentFilename || `${templateType}_${Date.now()}.docx`;
                         link.click();
                       }
                     }}

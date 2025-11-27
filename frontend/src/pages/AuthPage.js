@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, Scale } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -48,7 +48,7 @@ const AuthPage = ({ onLogin }) => {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-2xl mb-4 shadow-lg">
-              <Sparkles className="w-8 h-8 text-white" />
+              <Scale className="w-8 h-8 text-white" strokeWidth={2.5} />
             </div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
               TaRaZ
