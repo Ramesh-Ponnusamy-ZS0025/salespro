@@ -34,9 +34,11 @@ def set_db(database):
     db = database
 
 def set_llm_helper(llm_func):
+    global generate_llm_response
     generate_llm_response = llm_func
 
 def set_groq_client(client):
+    global groq_client
     groq_client = client
 
 def set_case_study_manager(manager):
@@ -240,6 +242,7 @@ Output: {{"action": "remove", "target_section": "case_studies", "removal_targets
         response = chat_completion.choices[0].message.content
 
         json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+        print(json_match)
         if json_match:
             return json.loads(json_match.group())
     except Exception as e:
@@ -565,6 +568,7 @@ async def generate_final_gtm_prompt(request: GTMFinalPromptRequest, current_user
     validation = request.validation_result
 
     user_adjustments = form_data.get('user_adjustments', '')
+    print(user_adjustments)
     user_adjustments_section = ""
 
     conv_db = get_conversation_db()

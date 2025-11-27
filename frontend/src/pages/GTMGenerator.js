@@ -72,6 +72,7 @@ const GTMGenerator = ({ user, onLogout }) => {
     }
 
     setLoading(true);
+    setUserAdjustments(''); // Reset adjustments for fresh conversation
     addMessage(`Great! Let me analyze the information for **${formData.company_name}**...`, 'assistant');
 
     try {
@@ -132,17 +133,31 @@ const GTMGenerator = ({ user, onLogout }) => {
     const userMsg = userInput.trim();
     addMessage(userMsg, 'user');
 
-    // Collect user adjustments (everything except "generate" commands)
-    const generateKeywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', '1', 'generate prompt', 'lets go', "let's go", 'ready'];
-    const isGenerateCommand = generateKeywords.some(keyword => userMsg.toLowerCase().includes(keyword));
+    // Smart detection: Only SHORT, EXACT generate commands should trigger generation
+    const msgLower = userMsg.toLowerCase().trim();
+    const exactGenerateCommands = ['generate', 'yes', 'go ahead', 'proceed', '1', '2', '3',
+                                   'generate prompt', 'lets go', "let's go", 'ready',
+                                   'generate it', 'create it', 'ok', 'sure'];
+
+    // Only trigger generate if:
+    // 1. It's an exact match with a command, OR
+    // 2. The message is very short (< 5 words) and contains a generate keyword
+    const words = userMsg.split(/\s+/);
+    const isGenerateCommand = exactGenerateCommands.includes(msgLower) ||
+                             (words.length <= 5 && exactGenerateCommands.some(cmd => msgLower.includes(cmd)));
 
     // Create a variable to store current adjustments
     let currentAdjustments = userAdjustments;
 
+    // ALWAYS collect user messages as adjustments (unless it's a clear generate command)
     if (!isGenerateCommand) {
       // This is an adjustment, collect it
       currentAdjustments = userAdjustments ? `${userAdjustments}\n\n${userMsg}` : userMsg;
       setUserAdjustments(currentAdjustments);
+      console.log('📝 Added to user adjustments:', userMsg);
+      console.log('📋 Total adjustments so far:', currentAdjustments);
+    } else {
+      console.log('🚀 Detected generate command:', userMsg);
     }
 
     setUserInput('');
@@ -172,7 +187,10 @@ const GTMGenerator = ({ user, onLogout }) => {
             user_adjustments: currentAdjustments // Use the latest adjustments
           };
 
-          console.log('Sending to backend:', {
+          console.log('📤 Sending to backend with ALL user adjustments:');
+          console.log('User adjustments length:', currentAdjustments?.length || 0);
+          console.log('User adjustments content:', currentAdjustments);
+          console.log('Full payload:', {
             form_data: finalFormData,
             validation_result: validationResult,
           });

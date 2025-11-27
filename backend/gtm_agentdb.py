@@ -9,19 +9,21 @@ import re
 
 logger = logging.getLogger(__name__)
 
+
 class PromptSection:
     """Represents a structured section of the final prompt"""
+
     def __init__(self, name: str, title: str, content: str = "", priority: int = 0):
         self.name = name
         self.title = title
         self.content = content
         self.priority = priority
         self.subsections = {}
-    
+
     def add_subsection(self, key: str, value: str):
         """Add or update a subsection"""
         self.subsections[key] = value
-    
+
     def merge_content(self, new_content: str, llm_refine_func=None):
         """Merge new content with existing, optionally using LLM to refine"""
         if not self.content:
@@ -32,7 +34,7 @@ class PromptSection:
         else:
             # Simple append with formatting
             self.content = f"{self.content}\n\n{new_content}"
-    
+
     def render(self) -> str:
         """Render section as formatted text"""
         output = f"## {self.title}\n"
@@ -48,7 +50,7 @@ class GTMAgentDB:
     AgentDB-based GTM Generator with intelligent context management
     Mimics ChatGPT's iterative refinement approach from the reference conversation
     """
-    
+
     SECTION_DEFINITIONS = {
         "objective": {"title": "🎯 Objective", "priority": 1},
         "prospect_profile": {"title": "🏢 Prospect Profile", "priority": 2},
@@ -66,7 +68,7 @@ class GTMAgentDB:
         "key_metrics": {"title": "📊 Key Metrics to Display", "priority": 14},
         "tone_messaging": {"title": "💬 Tone & Messaging", "priority": 15},
     }
-    
+
     def __init__(self):
         self.conversation_memory = []
         self.prompt_sections = {}
@@ -79,7 +81,7 @@ class GTMAgentDB:
             "design_preferences": [],
         }
         self._initialize_sections()
-    
+
     def _initialize_sections(self):
         """Initialize prompt sections structure"""
         for section_key, section_info in self.SECTION_DEFINITIONS.items():
@@ -88,46 +90,46 @@ class GTMAgentDB:
                 title=section_info["title"],
                 priority=section_info["priority"]
             )
-    
+
     def process_user_input(
-        self, 
-        user_message: str, 
-        form_data: Dict, 
-        validation_result: Optional[Dict],
-        llm_extract_func=None
+            self,
+            user_message: str,
+            form_data: Dict,
+            validation_result: Optional[Dict],
+            llm_extract_func=None
     ) -> Dict:
         """
         Process user input with intelligent extraction and organization
-        
+
         Args:
             user_message: Raw user input
             form_data: Current form configuration
             validation_result: Validation data
             llm_extract_func: Function to call LLM for extraction (async)
-        
+
         Returns:
             Response dict with action, message, and updated state
         """
-        
+
         message_lower = user_message.lower().strip()
-        
+
         # Store in conversation memory
         self.conversation_memory.append({
             "role": "user",
             "content": user_message,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
-        
+
         # Check for generate commands
-        generate_keywords = ['generate', 'create', 'yes', 'go ahead', 'proceed', 
-                           'generate prompt', 'lets go', "let's go", 'ready', 'done']
-        
+        generate_keywords = ['generate', 'yes', 'go ahead', 'proceed',
+                             'generate prompt', 'lets go', "let's go", 'ready', 'done']
+
         if any(keyword in message_lower for keyword in generate_keywords):
             # Check if we have enough information
             required_sections = ["prospect_profile", "solution", "pain_points"]
             missing = [s for s in required_sections if not self.prompt_sections[s].content]
-            
-            if missing and len(self.conversation_memory) < 3:
+
+            if missing and len(self.conversation_memory) < 3 and message_lower!='generate prompt':
                 # Too early to generate, need more context
                 return {
                     "action": "clarify",
@@ -143,7 +145,7 @@ class GTMAgentDB:
                     "updated_validation": validation_result
                 }
             print(validation_result)
-            print('self._build_extracted_context()',self._build_extracted_context())
+            print('self._build_extracted_context()', self._build_extracted_context())
             return {
                 "action": "generate",
                 "message": "Perfect! Generating your comprehensive microsite prompt now... 🚀",
@@ -151,21 +153,20 @@ class GTMAgentDB:
                 "updated_validation": validation_result,
                 "extracted_context": self._build_extracted_context()
             }
-        
+
         # Use LLM to extract structured information if function provided
         if llm_extract_func:
             extraction_result = llm_extract_func(user_message, self._get_current_context())
-            print('llm llm_extract_func',extraction_result)
+            print('llm llm_extract_func', extraction_result)
             if extraction_result:
-
                 self._process_extraction(extraction_result)
 
         # Classify intent and respond accordingly
         intent = self._classify_intent(user_message, form_data)
-        print('user_message',user_message)
-        print('intent',intent)
-        
-        if intent == "add_information":
+        print('user_message', user_message)
+        print('intent', intent)
+
+        if intent in ( "add_information","unclear"):
             # Check if extraction result has specific action type
             action_type = extraction_result.get("action", "add") if extraction_result else "add"
             summary = extraction_result.get("summary", "") if extraction_result else ""
@@ -184,7 +185,7 @@ class GTMAgentDB:
                 "updated_validation": validation_result,
                 "extracted_context": self._build_extracted_context()
             }
-        
+
         elif intent == "ask_question":
             response = self._answer_question(user_message, form_data, validation_result)
             return {
@@ -193,7 +194,7 @@ class GTMAgentDB:
                 "should_regenerate": False,
                 "updated_validation": validation_result
             }
-        
+
         elif intent == "modify_config":
             response = self._handle_configuration_change(user_message, form_data)
             return {
@@ -202,7 +203,7 @@ class GTMAgentDB:
                 "should_regenerate": False,
                 "updated_validation": validation_result
             }
-        
+
         else:  # unclear
             return {
                 "action": "clarify",
@@ -210,26 +211,26 @@ class GTMAgentDB:
                 "should_regenerate": False,
                 "updated_validation": validation_result
             }
-    
+
     def _classify_intent(self, message: str, form_data: Dict) -> str:
         """Classify user intent from message"""
         message_lower = message.lower()
-        
+
         # Check for information addition indicators
-        info_indicators = ['add', 'include', 'also', 'our', 'we', 'company', 'ceo', 
-                          'team', 'pricing', 'feature', 'customer', 'want', 'need',
-                          'should', 'could', 'make', 'design', 'color', 'style']
-        
+        info_indicators = ['add', 'include', 'also', 'our', 'we', 'company', 'ceo',
+                           'team', 'pricing', 'feature', 'customer', 'want', 'need',
+                           'should', 'could', 'make', 'design', 'color', 'style']
+
         # Check for questions
-        question_indicators = ['what', 'how', 'why', 'can you', 'could you', 
-                              'would you', '?', 'explain', 'tell me']
-        
+        question_indicators = ['what', 'how', 'why', 'can you', 'could you',
+                               'would you', '?', 'explain', 'tell me']
+
         # Check for modifications
-        modify_indicators = ['change', 'update', 'modify', 'adjust', 'different', 
-                            'instead', 'rather', 'not']
-        
+        modify_indicators = ['change', 'update', 'modify', 'adjust', 'different',
+                             'instead', 'rather', 'not']
+
         word_count = len(message.split())
-        
+
         has_info_indicators = any(ind in message_lower.split() for ind in info_indicators)
         has_question_indicators = any(ind in message_lower.split() for ind in question_indicators)
         has_modify_indicators = any(ind in message_lower.split() for ind in modify_indicators)
@@ -241,7 +242,7 @@ class GTMAgentDB:
             return "add_information"
         else:
             return "unclear"
-    
+
     def _process_extraction(self, extraction: Dict):
         """Process LLM extraction results and update sections with support for add/remove/modify"""
 
@@ -321,7 +322,7 @@ class GTMAgentDB:
                     # Append content for add actions
                     self.prompt_sections[section_key].merge_content(content)
                     logger.info(f"Added content to section '{section_key}': {content[:50]}...")
-    
+
     def _handle_information_addition(self, message: str, form_data: Dict, summary: str = "") -> str:
         """Handle user adding new information"""
         # Count total sections with content
@@ -343,7 +344,7 @@ class GTMAgentDB:
             response += "Feel free to add more details, or let me know when you're ready to generate!"
 
         return response
-    
+
     def _handle_configuration_change(self, message: str, form_data: Dict) -> str:
         """Handle user requesting configuration changes"""
         return (
@@ -354,11 +355,11 @@ class GTMAgentDB:
             "• Adjust technical requirements\n\n"
             "Let me know what you'd like to update!"
         )
-    
+
     def _answer_question(self, question: str, form_data: Dict, validation_result: Optional[Dict]) -> str:
         """Answer user questions intelligently"""
         question_lower = question.lower()
-        
+
         if any(keyword in question_lower for keyword in ['case stud', 'example', 'proof']):
             case_count = validation_result.get('use_case_count', 0) if validation_result else 0
             return (
@@ -367,7 +368,7 @@ class GTMAgentDB:
                 "with metrics, outcomes, and credibility indicators.\n\n"
                 "Ready to generate?"
             )
-        
+
         if any(keyword in question_lower for keyword in ['persona', 'target', 'audience', 'decision maker']):
             personas = form_data.get('target_personas', 'your target audience')
             return (
@@ -375,7 +376,7 @@ class GTMAgentDB:
                 "customized to resonate with their specific pain points, decision-making criteria, and business priorities.\n\n"
                 "Would you like to refine the personas or generate the prompt?"
             )
-        
+
         if any(keyword in question_lower for keyword in ['design', 'look', 'style', 'ui', 'visual']):
             return (
                 "The microsite will feature:\n\n"
@@ -386,7 +387,7 @@ class GTMAgentDB:
                 "• **Fast loading** with optimized assets\n\n"
                 "Any specific design preferences you'd like to add?"
             )
-        
+
         if any(keyword in question_lower for keyword in ['section', 'include', 'structure']):
             return (
                 "The microsite will include these key sections:\n\n"
@@ -399,7 +400,7 @@ class GTMAgentDB:
                 "7. Interactive elements\n\n"
                 "Want to add any custom sections?"
             )
-        
+
         # Generic helpful response
         return (
             "I can help with various aspects:\n\n"
@@ -410,7 +411,7 @@ class GTMAgentDB:
             "• Conversion optimization\n\n"
             "What specific aspect would you like to know more about?"
         )
-    
+
     def _request_clarification(self, message: str, form_data: Dict) -> str:
         """Request clarification for vague input"""
         return (
@@ -421,19 +422,19 @@ class GTMAgentDB:
             "• **Generate the prompt** with current configuration\n\n"
             "What would be most helpful?"
         )
-    
+
     def _get_current_context(self) -> Dict:
         """Get current conversation context for LLM"""
         return {
             "conversation_history": self.conversation_memory[-5:],  # Last 5 messages
             "filled_sections": [
-                {"section": k, "content": v.content[:200]} 
-                for k, v in self.prompt_sections.items() 
+                {"section": k, "content": v.content[:200]}
+                for k, v in self.prompt_sections.items()
                 if v.content
             ],
             "extracted_entities": self.extracted_entities
         }
-    
+
     def _build_extracted_context(self) -> Dict:
         """Build extracted context for prompt generation"""
         return {
@@ -448,67 +449,67 @@ class GTMAgentDB:
             },
             "entities": self.extracted_entities
         }
-    
+
     def build_final_prompt(self, form_data: Dict, validation_result: Dict, case_studies: List[Dict]) -> str:
         """
         Build comprehensive final prompt with all collected information
         organized into proper sections
         """
-        
+
         # Sort sections by priority
         sorted_sections = sorted(
             self.prompt_sections.values(),
             key=lambda x: x.priority
         )
-        
+
         prompt_parts = []
-        
+
         # Add objective (always present)
         company = form_data.get('company_name', 'the prospect')
         industry = form_data.get('industry', 'their industry')
-        
+
         objective = (
             f"Create a high-converting, interactive microsite for prospecting **{company}** "
             f"in the **{industry}** industry.\n\n"
             f"Generate a modern, engaging single-page microsite that convinces decision-makers to book a meeting."
         )
         prompt_parts.append(f"## 🎯 Objective\n{objective}\n")
-        
+
         # Add configured sections with content
         for section in sorted_sections:
             if section.content or section.subsections:
                 prompt_parts.append(section.render())
-        
+
         # Add case studies section
         if case_studies:
             case_studies_text = self._format_case_studies(case_studies)
             prompt_parts.append(f"## 📚 Relevant Case Studies\n{case_studies_text}\n")
-        
+
         # Add standard technical requirements
         prompt_parts.append(self._get_technical_requirements())
-        
+
         # Add deliverable section
         prompt_parts.append(self._get_deliverable_section(company))
-        
+
         return "\n\n".join(prompt_parts)
-    
+
     def _format_case_studies(self, case_studies: List[Dict]) -> str:
         """Format case studies for inclusion in prompt"""
         text = "**These are REAL case studies from your database. Use them to add credibility:**\n\n"
-        
+
         for idx, cs in enumerate(case_studies, 1):
             title = cs.get('filename', 'Untitled').replace('.pdf', '').replace('_', ' ')
             summary = cs.get('summary', 'No summary available')[:300]
             category = cs.get('category', 'General')
-            
+
             text += f"### {idx}. {title}\n"
             text += f"- **Category**: {category}\n"
             if summary:
                 text += f"- **Summary**: {summary}...\n"
             text += "\n"
-        
+
         return text
-    
+
     def _get_technical_requirements(self) -> str:
         """Get standard technical requirements"""
         return """## 🛠 Technical Requirements
@@ -523,7 +524,7 @@ class GTMAgentDB:
   * Interactive elements (tooltips, expandable sections)
 - **Responsive**: Mobile-first design
 - **Performance**: Fast loading, optimized images"""
-    
+
     def _get_deliverable_section(self, company: str) -> str:
         """Get deliverable section"""
         return f"""## ✅ Deliverable
@@ -531,21 +532,21 @@ class GTMAgentDB:
 A complete, production-ready React component that can be deployed immediately. Include all necessary imports, proper TypeScript types, and inline comments for easy customization.
 
 **Make it stunning, interactive, and conversion-focused. This microsite should make {company} excited to learn more!**"""
-    
+
     def get_conversation_history(self) -> List[Dict]:
         """Get full conversation history"""
         return self.conversation_memory
-    
+
     def get_prompt_preview(self) -> str:
         """Get current state of prompt as preview"""
         filled_sections = [s for s in self.prompt_sections.values() if s.content]
-        
+
         preview = "**Current Prompt Structure:**\n\n"
         for section in sorted(filled_sections, key=lambda x: x.priority):
             preview += f"✓ {section.title}\n"
-        
+
         return preview
-    
+
     def reset(self):
         """Reset conversation state"""
         self.conversation_memory = []
