@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Layout from '../components/Layout';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Eye, Sparkles, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -76,6 +76,8 @@ const AgentBuilder = ({ user, onLogout }) => {
   const [preview, setPreview] = useState(null);
   const [selectedPersonas, setSelectedPersonas] = useState([]);
   const [customPersona, setCustomPersona] = useState('');
+  const [leadersExpanded, setLeadersExpanded] = useState(true);
+  const [othersExpanded, setOthersExpanded] = useState(true);
   const [formData, setFormData] = useState({
     agent_name: '',
     service: '',
@@ -85,6 +87,7 @@ const AgentBuilder = ({ user, onLogout }) => {
     tone: 'professional',
     //methodologies: '',
     example_copies: '',
+    submitted_by_leaders: false,
   });
 
   useEffect(() => {
@@ -152,6 +155,7 @@ const AgentBuilder = ({ user, onLogout }) => {
       tone: agent.tone,
      // methodologies: agent.methodologies.join(', '),
       example_copies: agent.example_copies.join('\n'),
+      submitted_by_leaders: agent.submitted_by_leaders || false,
     });
     setShowDialog(true);
   };
@@ -187,6 +191,7 @@ const AgentBuilder = ({ user, onLogout }) => {
       tone: 'professional',
      // methodologies: '',
       example_copies: '',
+      submitted_by_leaders: false,
     });
     setSelectedPersonas([]);
     setCustomPersona('');
@@ -405,6 +410,34 @@ const AgentBuilder = ({ user, onLogout }) => {
                     Tone now includes persuasion frameworks for real-world GTM strategies
                   </p>
                 </div>
+                <div>
+                  <Label>Category *</Label>
+                  <div className="flex items-center gap-6 mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="category"
+                        checked={formData.submitted_by_leaders === true}
+                        onChange={() => setFormData({ ...formData, submitted_by_leaders: true })}
+                        className="w-4 h-4 text-indigo-600"
+                      />
+                      <span className="text-sm text-slate-700">Submitted by Leaders</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="category"
+                        checked={formData.submitted_by_leaders === false}
+                        onChange={() => setFormData({ ...formData, submitted_by_leaders: false })}
+                        className="w-4 h-4 text-indigo-600"
+                      />
+                      <span className="text-sm text-slate-700">Other Agents</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Mark if this agent is created/submitted by leadership team
+                  </p>
+                </div>
                 <div className="flex gap-2 pt-4">
                   <Button type="submit" disabled={loading} data-testid="save-agent-button" className="flex-1">
                     {loading ? 'Saving...' : editingAgent ? 'Update Agent' : 'Create Agent'}
@@ -429,67 +462,200 @@ const AgentBuilder = ({ user, onLogout }) => {
             <p className="text-slate-600 mb-6">Create your first AI sales agent to get started</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {agents.map((agent) => (
-              <div
-                key={agent.id}
-                data-testid={`agent-card-${agent.id}`}
-                className="bg-white rounded-xl p-6 shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-200"
+          <div className="space-y-6">
+            {/* Leaders Panel */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+              <button
+                onClick={() => setLeadersExpanded(!leadersExpanded)}
+                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-slate-900 mb-1">{agent.agent_name}</h3>
-                    <p className="text-sm text-slate-600">{agent.service}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-lg flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-white" />
                   </div>
-                  <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
-                    v{agent.version}
-                  </Badge>
-                </div>
-                <div className="space-y-2 mb-4">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700 mb-1">Tone:</p>
-                    <Badge variant="outline">{agent.tone}</Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700 mb-1">Value Props:</p>
-                    <p className="text-xs text-slate-600">{agent.value_props.slice(0, 2).join(', ')}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700 mb-1">Usage:</p>
-                    <p className="text-xs text-slate-600">{agent.usage_count} campaigns</p>
+                  <div className="text-left">
+                    <h2 className="text-lg font-bold text-slate-900">Agents Submitted by Leaders</h2>
+                    <p className="text-sm text-slate-600">
+                      {agents.filter(a => a.submitted_by_leaders).length} agent(s)
+                    </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handlePreview(agent.id)}
-                    data-testid={`preview-agent-${agent.id}`}
-                    className="flex-1"
-                  >
-                    <Eye size={16} className="mr-1" />
-                    Preview
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEdit(agent)}
-                    data-testid={`edit-agent-${agent.id}`}
-                  >
-                    <Edit size={16} />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDelete(agent.id)}
-                    data-testid={`delete-agent-${agent.id}`}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+                {leadersExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-slate-400" />
+                )}
+              </button>
+              {leadersExpanded && (
+                <div className="p-6 pt-0">
+                  {agents.filter(a => a.submitted_by_leaders).length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <p>No agents submitted by leaders yet</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {agents.filter(a => a.submitted_by_leaders).map((agent) => (
+                        <div
+                          key={agent.id}
+                          data-testid={`agent-card-${agent.id}`}
+                          className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 shadow-md border-2 border-indigo-200 hover:shadow-xl transition-all duration-200"
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-slate-900 mb-1">{agent.agent_name}</h3>
+                              <p className="text-sm text-slate-600">{agent.service}</p>
+                            </div>
+                            <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
+                              v{agent.version}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2 mb-4">
+                            <div>
+                              <p className="text-xs font-semibold text-slate-700 mb-1">Tone:</p>
+                              <Badge variant="outline">{agent.tone}</Badge>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-700 mb-1">Value Props:</p>
+                              <p className="text-xs text-slate-600">{agent.value_props.slice(0, 2).join(', ')}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-700 mb-1">Usage:</p>
+                              <p className="text-xs text-slate-600">{agent.usage_count} campaigns</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePreview(agent.id)}
+                              data-testid={`preview-agent-${agent.id}`}
+                              className="flex-1"
+                            >
+                              <Eye size={16} className="mr-1" />
+                              Preview
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(agent)}
+                              data-testid={`edit-agent-${agent.id}`}
+                            >
+                              <Edit size={16} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDelete(agent.id)}
+                              data-testid={`delete-agent-${agent.id}`}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )}
+            </div>
+
+            {/* Other Agents Panel */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+              <button
+                onClick={() => setOthersExpanded(!othersExpanded)}
+                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div className="text-left">
+                    <h2 className="text-lg font-bold text-slate-900">Other Agents</h2>
+                    <p className="text-sm text-slate-600">
+                      {agents.filter(a => !a.submitted_by_leaders).length} agent(s)
+                    </p>
+                  </div>
+                </div>
+                {othersExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-slate-400" />
+                )}
+              </button>
+              {othersExpanded && (
+                <div className="p-6 pt-0">
+                  {agents.filter(a => !a.submitted_by_leaders).length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <p>No other agents yet</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {agents.filter(a => !a.submitted_by_leaders).map((agent) => (
+                        <div
+                          key={agent.id}
+                          data-testid={`agent-card-${agent.id}`}
+                          className="bg-white rounded-xl p-6 shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-200"
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-slate-900 mb-1">{agent.agent_name}</h3>
+                              <p className="text-sm text-slate-600">{agent.service}</p>
+                            </div>
+                            <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
+                              v{agent.version}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2 mb-4">
+                            <div>
+                              <p className="text-xs font-semibold text-slate-700 mb-1">Tone:</p>
+                              <Badge variant="outline">{agent.tone}</Badge>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-700 mb-1">Value Props:</p>
+                              <p className="text-xs text-slate-600">{agent.value_props.slice(0, 2).join(', ')}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-700 mb-1">Usage:</p>
+                              <p className="text-xs text-slate-600">{agent.usage_count} campaigns</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePreview(agent.id)}
+                              data-testid={`preview-agent-${agent.id}`}
+                              className="flex-1"
+                            >
+                              <Eye size={16} className="mr-1" />
+                              Preview
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(agent)}
+                              data-testid={`edit-agent-${agent.id}`}
+                            >
+                              <Edit size={16} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDelete(agent.id)}
+                              data-testid={`delete-agent-${agent.id}`}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

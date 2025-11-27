@@ -58,6 +58,7 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [draggedStep, setDraggedStep] = useState(null);
   const [dragOverStep, setDragOverStep] = useState(null);
+  const [agentFilter, setAgentFilter] = useState('all'); // 'all', 'leaders', 'others'
 
   const [formData, setFormData] = useState({
     campaign_name: campaign?.campaign_name || '',
@@ -112,6 +113,13 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
       console.error('Failed to fetch sequence');
     }
   };
+
+  // Filter agents based on selected filter
+  const filteredAgents = agentFilter === 'leaders'
+    ? agents.filter(a => a.submitted_by_leaders)
+    : agentFilter === 'others'
+    ? agents.filter(a => !a.submitted_by_leaders)
+    : agents;
 
   const handleAgentSelect = (agentId) => {
     const selectedAgent = agents.find(agent => agent.id === agentId);
@@ -471,6 +479,44 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                         />
                       </div>
                       <div>
+                        <Label>Agent Category</Label>
+                        <div className="flex items-center gap-6 mt-2 mb-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="agentFilter"
+                              checked={agentFilter === 'all'}
+                              onChange={() => setAgentFilter('all')}
+                              className="w-4 h-4 text-indigo-600"
+                              disabled={configConfirmed}
+                            />
+                            <span className="text-sm text-slate-700">All Agents</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="agentFilter"
+                              checked={agentFilter === 'leaders'}
+                              onChange={() => setAgentFilter('leaders')}
+                              className="w-4 h-4 text-indigo-600"
+                              disabled={configConfirmed}
+                            />
+                            <span className="text-sm text-slate-700">Leaders Only</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="agentFilter"
+                              checked={agentFilter === 'others'}
+                              onChange={() => setAgentFilter('others')}
+                              className="w-4 h-4 text-indigo-600"
+                              disabled={configConfirmed}
+                            />
+                            <span className="text-sm text-slate-700">Other Agents</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div>
                         <Label>Select Agent *</Label>
                         <div className="flex gap-2">
                           <Select value={formData.agent_id} onValueChange={handleAgentSelect} disabled={configConfirmed}>
@@ -478,7 +524,12 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                               <SelectValue placeholder="Choose agent" />
                             </SelectTrigger>
                             <SelectContent>
-                              {agents.map(agent => <SelectItem key={agent.id} value={agent.id}>{agent.agent_name}</SelectItem>)}
+                              {filteredAgents.map(agent => (
+                                <SelectItem key={agent.id} value={agent.id}>
+                                  {agent.agent_name}
+                                  {agent.submitted_by_leaders && ' ⭐'}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <Button
@@ -491,6 +542,11 @@ const CampaignEditor = ({ campaign, agents, user, onLogout, onBack, editMode }) 
                             New
                           </Button>
                         </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {filteredAgents.length} agent(s) available
+                          {agentFilter === 'leaders' && ' (submitted by leaders)'}
+                          {agentFilter === 'others' && ' (other agents)'}
+                        </p>
                       </div>
                       <div className="grid grid-cols-1 gap-4">
                         <div>

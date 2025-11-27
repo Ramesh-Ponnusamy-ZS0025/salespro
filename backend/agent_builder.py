@@ -45,6 +45,7 @@ class Agent(BaseModel):
     example_copies: List[str] = []
     version: str = "1.0"
     created_by: str
+    submitted_by_leaders: bool = False
     usage_count: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -58,6 +59,7 @@ class AgentCreate(BaseModel):
     personas: List[str] = []
     tone: str = "professional"
     example_copies: List[str] = []
+    submitted_by_leaders: bool = False
 
 # ============== AGENT ROUTES ==============
 
