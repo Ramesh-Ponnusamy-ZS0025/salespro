@@ -23,8 +23,8 @@ router = APIRouter(prefix="/api", tags=["gtm"])
 # Database reference - will be set from server.py
 db = None
 
-
-
+# Case study manager reference - will be set from server.py
+case_study_manager = None
 
 # Initialize AgentDB-based GTM Assistant (per-user instances stored in dict)
 gtm_agents = {}
@@ -38,6 +38,10 @@ def set_llm_helper(llm_func):
 
 def set_groq_client(client):
     groq_client = client
+
+def set_case_study_manager(manager):
+    global case_study_manager
+    case_study_manager = manager
 
 def get_or_create_gtm_agent(user_id: str) -> GTMAgentDB:
     """Get or create GTM agent instance for user"""
@@ -432,11 +436,34 @@ async def process_gtm_feedback(request: GTMFeedbackRequest, current_user: User =
 
         logger.info(f"Found {len(fetched_case_studies)} case studies for {industry}")
 
+        # Fetch latest Zuci news
+        zuci_news_text = ""
+        if case_study_manager:
+            zuci_news_items = await case_study_manager.get_latest_zuci_news(max_results=2)
+            if zuci_news_items:
+                zuci_news_text = "\n\n## 📰 Latest Company News\n"
+                zuci_news_text += "**Include these recent achievements to build credibility:**\n\n"
+                for idx, news in enumerate(zuci_news_items, 1):
+                    news_link = news.get('news_link', '')
+                    zuci_news_text += f"### {idx}. {news.get('title', 'News Update')}\n"
+                    zuci_news_text += f"- **Description**: {news.get('description', '')}\n"
+                    zuci_news_text += f"- **Published**: {news.get('published_date', '')}\n"
+                    if news_link:
+                        zuci_news_text += f"- **Link**: {news_link}\n"
+                        zuci_news_text += f"- **Markdown Format**: [{news.get('title', 'News')}]({news_link})\n"
+                    zuci_news_text += "\n"
+                zuci_news_text += "**INSTRUCTION**: Include at least one news item naturally in the microsite (preferably in the credibility/about section or footer) with a clickable link.\n"
+                logger.info(f"Added {len(zuci_news_items)} Zuci news items to GTM prompt")
+
         final_prompt_text = agent.build_final_prompt(
             form_data=form_data,
             validation_result=validation,
             case_studies=fetched_case_studies
         )
+
+        # Append zuci_news to final prompt
+        if zuci_news_text:
+            final_prompt_text += zuci_news_text
 
         user_adjustments = []
         for msg in conversation_history:
@@ -721,6 +748,28 @@ Only include sub-headings that have content."""
         for uc in validation['relevant_use_cases'][:3]:
             industry_use_cases_text += f"- **{uc['title']}**: {uc['description']} ({uc['impact']})\n"
 
+    # Fetch latest Zuci news
+    zuci_news_text = ""
+    if case_study_manager:
+        zuci_news_items = await case_study_manager.get_latest_zuci_news(max_results=2)
+        if zuci_news_items:
+            zuci_news_text = "\n\n## 📰 Latest Company News\n"
+            zuci_news_text += "**Include these recent achievements to build credibility and trust:**\n\n"
+            for idx, news in enumerate(zuci_news_items, 1):
+                news_link = news.get('news_link', '')
+                zuci_news_text += f"### {idx}. {news.get('title', 'News Update')}\n"
+                zuci_news_text += f"- **Description**: {news.get('description', '')}\n"
+                zuci_news_text += f"- **Published**: {news.get('published_date', '')}\n"
+                if news_link:
+                    zuci_news_text += f"- **Link**: {news_link}\n"
+                    zuci_news_text += f"- **Markdown Format**: [{news.get('title', 'News')}]({news_link})\n"
+                zuci_news_text += "\n"
+            zuci_news_text += "**CRITICAL**: You MUST include at least ONE news item in the microsite with a clickable link. Best placement:\n"
+            zuci_news_text += "- In the 'About Us' or company credibility section\n"
+            zuci_news_text += "- In the footer as 'Recent News' or 'Latest Updates'\n"
+            zuci_news_text += "- As a banner or announcement strip at the top\n"
+            logger.info(f"Added {len(zuci_news_items)} Zuci news items to GTM final prompt")
+
     # Build final prompt
     final_prompt = f"""Create a high-converting, interactive microsite for prospecting **{form_data['company_name']}** in the **{form_data['industry']}** industry.
 
@@ -746,6 +795,7 @@ Generate a modern, engaging single-page microsite that convinces decision-makers
 {user_use_cases_text}
 {industry_use_cases_text}
 {case_studies_section}
+{zuci_news_text}
 
 ## 🎨 Design Requirements
 

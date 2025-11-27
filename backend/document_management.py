@@ -922,3 +922,48 @@ async def scrape_zuci_case_studies(current_user: User = Depends(get_current_user
     except Exception as e:
         logger.error(f"Error in scrape endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to scrape case studies: {str(e)}")
+
+@router.post("/document-files/sync-vector-db")
+async def sync_vector_database(current_user: User = Depends(get_current_user)):
+    """Sync documents from MongoDB to Vector Database for semantic search"""
+    try:
+        if not case_study_manager:
+            raise HTTPException(
+                status_code=500,
+                detail="Case Study Manager not initialized"
+            )
+
+        if not case_study_manager.vector_db:
+            raise HTTPException(
+                status_code=500,
+                detail="Vector Database not available. Please install sentence-transformers: pip install sentence-transformers"
+            )
+
+        if not case_study_manager.vector_db.embedding_model:
+            raise HTTPException(
+                status_code=500,
+                detail="Embedding model not available. Please install sentence-transformers: pip install sentence-transformers"
+            )
+
+        logger.info(f"User {current_user.id} initiated vector DB sync")
+
+        # Sync missing documents
+        synced_count = await case_study_manager.sync_missing_documents()
+
+        # Get total count in vector DB
+        total_count = len(case_study_manager.vector_db.get_all_file_ids())
+
+        return {
+            "success": True,
+            "message": f"Successfully synced {synced_count} documents to vector database",
+            "synced_count": synced_count,
+            "total_vector_db_count": total_count
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error syncing vector DB: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to sync vector database: {str(e)}")

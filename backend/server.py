@@ -175,6 +175,9 @@ async def startup_event():
     # Set groq client for GTM module
     gtm.set_groq_client(groq_client)
 
+    # Set case study manager for GTM module
+    gtm.set_case_study_manager(case_study_manager)
+
     logging.info("SalesPro API started successfully")
 
 # ============== SHUTDOWN EVENT ==============

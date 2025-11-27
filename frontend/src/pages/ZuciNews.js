@@ -23,7 +23,8 @@ const ZuciNews = ({ user, onLogout }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    published_date: new Date().toISOString().split('T')[0] // YYYY-MM-DD
+    published_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+    news_link: ''
   });
 
   useEffect(() => {
@@ -65,7 +66,8 @@ const ZuciNews = ({ user, onLogout }) => {
       setFormData({
         title: '',
         description: '',
-        published_date: new Date().toISOString().split('T')[0]
+        published_date: new Date().toISOString().split('T')[0],
+        news_link: ''
       });
       fetchNews();
     } catch (error) {
@@ -79,7 +81,8 @@ const ZuciNews = ({ user, onLogout }) => {
     setFormData({
       title: news.title,
       description: news.description,
-      published_date: news.published_date
+      published_date: news.published_date,
+      news_link: news.news_link || ''
     });
     setShowCreateModal(true);
   };
@@ -128,7 +131,8 @@ const ZuciNews = ({ user, onLogout }) => {
                 setFormData({
                   title: '',
                   description: '',
-                  published_date: new Date().toISOString().split('T')[0]
+                  published_date: new Date().toISOString().split('T')[0],
+                  news_link: ''
                 });
                 setShowCreateModal(true);
               }}
@@ -190,6 +194,22 @@ const ZuciNews = ({ user, onLogout }) => {
                           {news.description}
                         </p>
                       </div>
+
+                      {news.news_link && (
+                        <div className="mb-4">
+                          <Label className="text-sm font-semibold text-slate-700 mb-2 block">
+                            News Link
+                          </Label>
+                          <a
+                            href={news.news_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-indigo-600 hover:text-indigo-800 underline break-all"
+                          >
+                            {news.news_link}
+                          </a>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                         <div className="text-xs text-slate-500">
@@ -266,6 +286,20 @@ const ZuciNews = ({ user, onLogout }) => {
             </div>
 
             <div>
+              <Label>News Link (Optional)</Label>
+              <Input
+                type="url"
+                value={formData.news_link}
+                onChange={(e) => setFormData({ ...formData, news_link: e.target.value })}
+                placeholder="https://example.com/news-article"
+                className="mt-1"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Add a link to the full news article or announcement
+              </p>
+            </div>
+
+            <div>
               <Label>News Description *</Label>
               <Textarea
                 value={formData.description}
@@ -286,7 +320,8 @@ const ZuciNews = ({ user, onLogout }) => {
                 setFormData({
                   title: '',
                   description: '',
-                  published_date: new Date().toISOString().split('T')[0]
+                  published_date: new Date().toISOString().split('T')[0],
+                  news_link: ''
                 });
               }}
             >

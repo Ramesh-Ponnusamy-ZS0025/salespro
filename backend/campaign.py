@@ -199,6 +199,11 @@ async def create_campaign(campaign_data: CampaignCreate, current_user: User = De
     # Handle auto-pick documents using CaseStudyManager
     selected_docs = campaign_data.selected_documents
     if campaign_data.auto_pick_documents and case_study_manager:
+        logger.info(f"🔍 Auto-pick enabled. Searching for case studies...")
+        logger.info(f"   Service: {campaign_data.service}")
+        logger.info(f"   Stage: {campaign_data.stage}")
+        logger.info(f"   ICP: {campaign_data.icp}")
+
         selected_docs = await case_study_manager.auto_pick_case_studies(
             service=campaign_data.service,
             stage=campaign_data.stage,
@@ -206,7 +211,9 @@ async def create_campaign(campaign_data: CampaignCreate, current_user: User = De
             custom_inputs=campaign_data.custom_inputs,
             max_results=3
         )
-        logger.info(f"Auto-picked {len(selected_docs)} case studies for campaign")
+        logger.info(f"✅ Auto-picked {len(selected_docs)} case studies: {selected_docs}")
+    else:
+        logger.info(f"Auto-pick disabled or case_study_manager not available. Selected docs: {selected_docs}")
 
     campaign = Campaign(
         **campaign_data.model_dump(exclude={'selected_documents'}),
@@ -261,12 +268,21 @@ async def generate_campaign_copy(campaign_id: str, current_user: User = Depends(
 
     # Get selected case studies with full details
     case_study_references = []
+    logger.info(f"📄 Campaign selected_documents: {campaign.get('selected_documents')}")
+
     if campaign.get('selected_documents') and case_study_manager:
+        logger.info(f"Fetching {len(campaign['selected_documents'])} case study details...")
         case_studies = await case_study_manager.get_case_study_details(campaign['selected_documents'])
+        logger.info(f"Retrieved {len(case_studies)} case studies from database")
+
+        for idx, cs in enumerate(case_studies):
+            logger.info(f"  Case Study {idx+1}: filename='{cs.get('filename')}', has_summary={bool(cs.get('summary'))}, has_metadata={bool(cs.get('metadata'))}")
 
         for cs in case_studies:
             ref = case_study_manager.format_case_study_reference(cs, context='inline')
-            title = cs.get('title', 'Case Study')
+            # Use filename as fallback for title (document_files use filename, not title)
+            filename = cs.get('filename', 'Case Study')
+            title = cs.get('title', filename)
             source_url = cs.get('metadata', {}).get('source_url', '')
             summary = cs.get('summary', '')[:200]
 
@@ -276,11 +292,112 @@ async def generate_campaign_copy(campaign_id: str, current_user: User = Depends(
                 'summary': summary,
                 'formatted_ref': ref
             })
+            logger.info(f"    Added case study: '{title}' with URL: {source_url[:50] if source_url else 'NONE'}")
+    else:
+        logger.warning("⚠️ No selected_documents found in campaign or case_study_manager not available")
 
-    case_studies_text = "\n".join([
-        f"- {cs['title']}: {cs['summary']}\n  Link: {cs['url']}"
-        for cs in case_study_references
-    ]) if case_study_references else "No case studies selected"
+    logger.info(f"Total case study references before validation: {len(case_study_references)}")
+
+    if case_study_references:
+        # Validate that we have actual URLs, not empty strings
+        valid_case_studies = [cs for cs in case_study_references if cs.get('url') and cs['url'].strip() and not cs['url'].startswith('http://example.com') and not cs['url'].startswith('https://example.com')]
+
+        logger.info(f"✅ Valid case studies after URL validation: {len(valid_case_studies)} out of {len(case_study_references)}")
+
+        if not valid_case_studies:
+            logger.warning("⚠️ All case studies filtered out - missing valid URLs")
+            for cs in case_study_references:
+                logger.warning(f"   Filtered: '{cs['title']}' - URL: '{cs.get('url', 'NONE')}'")
+
+        if valid_case_studies:
+            case_studies_text = "=" * 80 + "\n"
+            case_studies_text += "🔴 CASE STUDIES WITH REAL URLS - MANDATORY TO INCLUDE ONE\n"
+            case_studies_text += "=" * 80 + "\n\n"
+
+            for idx, cs in enumerate(valid_case_studies, 1):
+                case_studies_text += f"""📄 CASE STUDY #{idx}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Title: {cs['title']}
+Summary: {cs['summary']}
+URL: {cs['url']}
+
+👉 COPY THIS EXACT LINE TO USE IN EMAIL:
+[{cs['title']}]({cs['url']})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"""
+
+            case_studies_text += f"""
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                         🚨 CRITICAL INSTRUCTIONS 🚨                            ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+YOU MUST INCLUDE A CASE STUDY LINK IN PARAGRAPH 2. HERE'S HOW:
+
+Step 1: Look at "CASE STUDY #1" above
+Step 2: Find the line that says "👉 COPY THIS EXACT LINE TO USE IN EMAIL:"
+Step 3: Copy EVERYTHING after that arrow: [{valid_case_studies[0]['title']}]({valid_case_studies[0]['url']})
+Step 4: Paste it in Paragraph 2 like this:
+
+   "We helped a similar company achieve [results]. See the full story: [{valid_case_studies[0]['title']}]({valid_case_studies[0]['url']})"
+
+❌ FORBIDDEN - DO NOT DO THESE:
+   - DO NOT write: [Case Study](https://example.com/anything)
+   - DO NOT write: [Success Story](https://company.com/anything)
+   - DO NOT create ANY URL that starts with "example.com"
+   - DO NOT make up URLs based on the title
+   - DO NOT skip the case study - IT IS MANDATORY
+
+✅ VALIDATION CHECK:
+   Your case study link MUST contain this exact URL: {valid_case_studies[0]['url']}
+   If your URL doesn't match, you did it WRONG!
+
+"""
+        else:
+            case_studies_text = """
+════════════════════════════════════════════════════════════════════════════════
+⛔ NO VALID CASE STUDY URLS AVAILABLE
+════════════════════════════════════════════════════════════════════════════════
+
+INSTRUCTION: Do NOT include any case study links in the email.
+Write the email without mentioning case studies.
+"""
+    else:
+        case_studies_text = """
+════════════════════════════════════════════════════════════════════════════════
+⛔ NO CASE STUDIES AVAILABLE
+════════════════════════════════════════════════════════════════════════════════
+
+INSTRUCTION: Do NOT include any case study links in the email.
+Write the email without mentioning case studies.
+"""
+
+    # Get latest Zuci news items
+    zuci_news_items = []
+    zuci_news_text = ""
+    if case_study_manager:
+        zuci_news_items = await case_study_manager.get_latest_zuci_news(max_results=2)
+        if zuci_news_items:
+            zuci_news_text = "\n=== LATEST ZUCI NEWS (MUST include in P.S. or body with link) ===\n"
+            for idx, news in enumerate(zuci_news_items, 1):
+                news_link = news.get('news_link', '')
+                zuci_news_text += f"""
+News {idx}:
+Title: {news.get('title', 'Zuci News')}
+Description: {news.get('description', '')}
+Published: {news.get('published_date', '')}
+Link: {news_link if news_link else 'No link available'}
+Markdown format: [{news.get('title', 'News')}]({news_link if news_link else '#'})
+
+"""
+            zuci_news_text += """
+INSTRUCTION: Reference at least ONE news item naturally in the email P.S. WITH clickable link.
+- Use markdown format: [News Title](News Link)
+- Example: "P.S. Exciting update - we were recently [named a Leader in Gartner's Magic Quadrant](exact_link_from_above)."
+- If no link available, mention without link.
+"""
+        else:
+            logger.info("No Zuci news items available for campaign")
 
     methodology_text = ", ".join(campaign.get('methodologies', [])) or "Standard approach"
 
@@ -301,8 +418,27 @@ Agent Profile:
 - Pain Points to Address: {', '.join(agent.get('pain_points', []))}
 - Target Personas: {', '.join(agent.get('personas', []))}
 
-Available Case Studies (MUST reference with PDF link in the body):
 {case_studies_text}
+
+{zuci_news_text}
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                    🚨 FINAL WARNING ABOUT URLS 🚨                              ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+IF you see "🔴 CASE STUDIES WITH REAL URLS" above:
+   → You MUST copy the exact line shown after "👉 COPY THIS EXACT LINE"
+   → Your email MUST include that exact case study link
+   → DO NOT create any URL yourself
+
+IF you see "⛔ NO CASE STUDIES AVAILABLE" or "⛔ NO VALID CASE STUDY URLS":
+   → DO NOT include ANY case study links
+   → Write the email without case study references
+
+❌ ABSOLUTELY FORBIDDEN:
+   - Creating URLs with "example.com"
+   - Making up URLs based on titles
+   - Modifying the provided URLs in any way
 
 === MANDATORY EMAIL-COPYWRITING STRUCTURE ===
 
@@ -318,9 +454,11 @@ Available Case Studies (MUST reference with PDF link in the body):
 
 3. BODY (3 paragraphs, 200-250 words total)
    - Paragraph 1: Identify the PAIN/CHALLENGE your prospect faces
-   - Paragraph 2: Present your SOLUTION with a CASE STUDY reference
-     * MUST include the case study PDF link in markdown format: [Case Study Name](URL)
-     * Example: "See how we helped [Company]: [Case Study Title](https://...pdf)"
+   - Paragraph 2: Present your SOLUTION with a CASE STUDY reference (MANDATORY if case studies provided)
+     * Copy the EXACT "Markdown Format" from the case studies section above
+     * Insert it naturally: "We helped [Company] achieve X. See details: [paste exact markdown here]"
+     * DO NOT skip this if case studies are available above
+     * DO NOT create your own URLs
    - Paragraph 3: Highlight measurable OUTCOMES/RESULTS with metrics (%, ROI, time saved)
 
 4. CTA (Call-to-Action)
@@ -513,27 +651,147 @@ async def generate_step_content(campaign_id: str, step_number: int, current_user
 
     # Get case studies for this campaign
     case_study_references = []
-    if campaign.get('selected_documents') and case_study_manager:
-        case_studies = await case_study_manager.get_case_study_details(campaign['selected_documents'])
-        for cs in case_studies[:2]:  # Get up to 2 case studies
+    selected_doc_ids = campaign.get('selected_documents', [])
+    auto_pick_documents = campaign.get('auto_pick_documents', [])
+
+
+    # If no selected documents, try auto-pick using context-based search
+    if auto_pick_documents and case_study_manager:
+        logger.info("No selected documents found, attempting auto-pick for sequence step")
+
+        # Build rich context from campaign data (similar to personalize.py)
+        context_parts = []
+
+        # Add service
+        if campaign.get('service'):
+            context_parts.append(campaign.get('service'))
+
+        # Add ICP
+        if campaign.get('icp'):
+            context_parts.extend(campaign.get('icp'))
+
+        # Add custom inputs
+        if campaign.get('custom_inputs'):
+            for ci in campaign.get('custom_inputs', []):
+                if ci.get('value'):
+                    context_parts.append(ci.get('value'))
+
+        # Add agent value props and pain points for better context
+        agent = await db.agents.find_one({"id": campaign['agent_id']}, {"_id": 0})
+        if agent:
+            if agent.get('value_props'):
+                context_parts.extend(agent.get('value_props'))
+            if agent.get('pain_points'):
+                context_parts.extend(agent.get('pain_points'))
+
+        context_for_matching = ' '.join(context_parts)
+        logger.info(f"Built context for case study matching: '{context_for_matching[:200]}...'")
+
+        # Use the thread-based search (same as personalize.py)
+        selected_doc_ids = await case_study_manager.get_recommended_case_studies_for_thread(
+            thread_context=context_for_matching,
+            objection_type=None,
+            service=campaign.get('service', None),
+            max_results=3
+        )
+        logger.info(f"Context-based search found {len(selected_doc_ids)} case studies for sequence step")
+
+    if selected_doc_ids and case_study_manager:
+        case_studies = await case_study_manager.get_case_study_details(selected_doc_ids)
+        logger.info(f"Retrieved {len(case_studies)} case study details from database")
+
+        for idx, cs in enumerate(case_studies[:2]):  # Get up to 2 case studies
+            logger.info(f"Processing case study {idx + 1}: {cs.get('id', 'NO_ID')}")
             source_url = cs.get('metadata', {}).get('source_url', '')
-            case_study_references.append({
-                'title': cs.get('title', 'Case Study'),
-                'url': source_url,
-                'summary': cs.get('summary', '')[:200]
-            })
+            # Use filename as fallback for title (document_files use filename, not title)
+            filename = cs.get('filename', 'Case Study')
+            title = cs.get('title', filename)
+            summary = cs.get('summary', '')
+
+            logger.info(f"  Title: '{title}', URL: '{source_url}', Summary length: {len(summary)}")
+
+            # Only add if we have valid data
+            # Check against both 'Case Study' and 'Untitled' generic defaults
+            is_valid_title = title and title not in ['Case Study', 'Untitled', 'Untitled Case Study']
+            if source_url and source_url.strip() and is_valid_title and summary:
+                case_study_references.append({
+                    'title': title,
+                    'url': source_url,
+                    'summary': summary[:200]
+                })
+                logger.info(f"  ✓ Added case study: {title}")
+            else:
+                logger.warning(f"  ✗ Skipped case study due to missing data - URL: {bool(source_url)}, Title valid: {is_valid_title} (title='{title}'), Summary: {bool(summary)}")
+    else:
+        logger.warning("No case study IDs available for sequence step")
+
+    # Validate case studies have real URLs
+    valid_case_studies = [cs for cs in case_study_references
+                          if cs.get('url')
+                          and cs['url'].strip()
+                          and not cs['url'].startswith('http://example.com')
+                          and not cs['url'].startswith('https://example.com')]
+
+    logger.info(f"Sequence step: Found {len(valid_case_studies)} valid case studies out of {len(case_study_references)} total")
 
     case_study_text = ""
-    if case_study_references:
-        case_study_text = "\n=== CASE STUDIES TO REFERENCE (MUST include PDF link) ==="
-        for idx, cs in enumerate(case_study_references, 1):
-            case_study_text += f"""
-Case Study {idx}: {cs['title']}
+    if valid_case_studies:
+        case_study_text = "\n" + "=" * 80 + "\n"
+        case_study_text += "🔴 CASE STUDIES WITH REAL URLS - MANDATORY TO INCLUDE ONE\n"
+        case_study_text += "=" * 80 + "\n\n"
+
+        for idx, cs in enumerate(valid_case_studies, 1):
+            case_study_text += f"""📄 CASE STUDY #{idx}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Title: {cs['title']}
 Summary: {cs['summary']}
-PDF Link: {cs['url']}
-Markdown format: [{cs['title']}]({cs['url']})
+URL: {cs['url']}
+
+👉 COPY THIS EXACT LINE:
+[{cs['title']}]({cs['url']})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 """
-        case_study_text += "\nIMPORTANT: Include at least one case study link in your response!"
+        case_study_text += f"""
+🚨 MANDATORY: Copy the exact line after "👉 COPY THIS EXACT LINE"
+✅ Use: [{valid_case_studies[0]['title']}]({valid_case_studies[0]['url']})
+❌ DO NOT create URLs with "example.com"
+❌ DO NOT skip - case study is REQUIRED
+"""
+    else:
+        case_study_text = """
+════════════════════════════════════════════════════════════════════════════════
+⛔ NO VALID CASE STUDY URLS AVAILABLE
+════════════════════════════════════════════════════════════════════════════════
+
+INSTRUCTION: Do NOT include any case study links in this message.
+Write without case study references.
+"""
+        logger.warning("No valid case studies available for sequence step - instructing LLM to skip")
+
+    # Get latest Zuci news items
+    zuci_news_text = ""
+    if case_study_manager:
+        zuci_news_items = await case_study_manager.get_latest_zuci_news(max_results=2)
+        if zuci_news_items:
+            zuci_news_text = "\n=== LATEST ZUCI NEWS (MUST include with link) ===\n"
+            for idx, news in enumerate(zuci_news_items, 1):
+                news_link = news.get('news_link', '')
+                zuci_news_text += f"""
+News {idx}:
+Title: {news.get('title', 'Zuci News')}
+Description: {news.get('description', '')}
+Published: {news.get('published_date', '')}
+Link: {news_link if news_link else 'No link available'}
+Markdown format: [{news.get('title', 'News')}]({news_link if news_link else '#'})
+
+"""
+            zuci_news_text += """
+CRITICAL: You MUST reference at least ONE news item WITH clickable link in P.S. or body.
+- Use markdown format: [News Title](exact_link_from_above)
+- Example: "P.S. We were recently [recognized as a Leader](link_here)."
+- If no link, mention without link.
+"""
 
     # Generate content based on channel and campaign context
     channel = step['channel']
@@ -550,6 +808,11 @@ Agent Profile:
 - Value Props: {', '.join(agent.get('value_props', []))}
 - Pain Points: {', '.join(agent.get('pain_points', []))}
 {case_study_text}
+{zuci_news_text}
+
+🔴 MANDATORY: If case studies are listed above, you MUST include one in your message
+✅ Use EXACT markdown format provided
+❌ NEVER create fake URLs
 
 Sequence Context:
 - This is Step {step_number} on Day {step['day']}
@@ -603,6 +866,11 @@ Agent Profile:
 - Value Props: {', '.join(agent.get('value_props', []))}
 - Pain Points: {', '.join(agent.get('pain_points', []))}
 {case_study_text}
+{zuci_news_text}
+
+🔴 MANDATORY: Include case study link if provided above
+✅ Use exact format from case studies section
+❌ No fake URLs
 
 === LINKEDIN MESSAGE STRUCTURE ===
 
@@ -646,6 +914,9 @@ Target ICP: {', '.join(campaign.get('icp', []))}
 Agent Profile:
 - Value Props: {', '.join(agent.get('value_props', []))}
 {case_study_text}
+{zuci_news_text}
+
+🔴 MANDATORY: If case studies shown above, mention one with exact link provided
 
 === VOICEMAIL STRUCTURE ===
 
@@ -675,7 +946,6 @@ Hi [Name], this is [Your Name] from [Company].
 
 Again, this is [Your Name] at [number]. Looking forward to connecting.
 """
-
     content = await generate_llm_response(prompt, module='campaign')
 
     # Update step content

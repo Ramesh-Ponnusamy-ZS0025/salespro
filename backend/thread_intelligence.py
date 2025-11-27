@@ -203,6 +203,33 @@ Write your response WITHOUT any case study references.
 """
         logger.warning("No case studies available - instructing LLM to skip case study references")
 
+    # Get latest Zuci news items
+    zuci_news_text = ""
+    if case_study_manager:
+        zuci_news_items = await case_study_manager.get_latest_zuci_news(max_results=2)
+        if zuci_news_items:
+            zuci_news_text = "\n=== LATEST ZUCI NEWS (MUST include in P.S. with link) ===\n"
+            for idx, news in enumerate(zuci_news_items, 1):
+                news_link = news.get('news_link', '')
+                zuci_news_text += f"""
+News {idx}:
+Title: {news.get('title', 'Zuci News')}
+Description: {news.get('description', '')}
+Published: {news.get('published_date', '')}
+Link: {news_link if news_link else 'No link available'}
+Markdown format: [{news.get('title', 'News')}]({news_link if news_link else '#'})
+
+"""
+            zuci_news_text += """
+CRITICAL INSTRUCTION: You MUST reference at least ONE news item WITH clickable link in P.S.
+- Use markdown format: [News Title](exact_link_from_above)
+- Example: "P.S. Exciting news - we were recently [recognized as a Leader](link_from_above)."
+- If no link available, mention the news without link.
+"""
+            logger.info(f"Added {len(zuci_news_items)} Zuci news items to thread analysis")
+        else:
+            logger.info("No Zuci news items available for thread analysis")
+
     prompt = f"""You are an email-thread analysis assistant. Follow ALL rules carefully.
 
         TASKS:
@@ -234,7 +261,8 @@ Write your response WITHOUT any case study references.
         Toronto, ON
         Zuci Systems
         {case_study_text}
-        
+        {zuci_news_text}
+
         CRITICAL RULES:
         - Do NOT invent emails not present in the thread
         - Do NOT echo the user's draft message verbatim

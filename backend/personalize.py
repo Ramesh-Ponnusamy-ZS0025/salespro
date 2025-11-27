@@ -183,6 +183,37 @@ CRITICAL INSTRUCTIONS FOR CASE STUDY LINKS:
 6. If no case studies provided above, do not mention case studies
 """
 
+    # Get latest Zuci news items
+    zuci_news_text = ""
+    if case_study_manager:
+        zuci_news_items = await case_study_manager.get_latest_zuci_news(max_results=2)
+        print(zuci_news_items)
+        if zuci_news_items:
+            zuci_news_text = "\n=== LATEST ZUCI NEWS - MUST INCLUDE IN OUTPUT ===\n"
+            for idx, news in enumerate(zuci_news_items, 1):
+                news_link = news.get('news_link', '')
+                zuci_news_text += f"""
+News {idx}:
+Title: {news.get('title', 'Zuci News')}
+Description: {news.get('description', '')}
+Published: {news.get('published_date', '')}
+Link: {news_link if news_link else 'No link available'}
+Markdown format: [{news.get('title', 'News')}]({news_link if news_link else '#'})
+
+"""
+            zuci_news_text += """
+CRITICAL INSTRUCTION: You MUST naturally reference at least ONE news item from above.
+- For LinkedIn: Include in the VALUE or CLOSE section with the news link
+- For Email: Include in the P.S. section with the news link
+- Format: Mention the title or key point naturally with a clickable link
+- Example: "P.S. Exciting news - we were recently [recognized as a Leader]({news_link}). Great momentum!"
+- MUST use the exact Link URL from above in markdown format: [News Title](News Link)
+- If no link is available, mention the news without a link
+"""
+            logger.info(f"Added {len(zuci_news_items)} Zuci news items to personalization")
+        else:
+            logger.info("No Zuci news items available for personalization")
+
     # Company context section
     company_context_text = ""
     if request.company_context:
@@ -215,22 +246,25 @@ CRITICAL INSTRUCTIONS FOR CASE STUDY LINKS:
         STRUCTURE DETAILS:
         1. OPENER: Personalized greeting + reference to their role/company (1 sentence)
         2. VALUE: 1–2 sentences offering an insight relevant to them (RPA / automation / efficiency)
-        3. PROOF: MUST include one case study link from the list below.  
-           Format EXACTLY:  
+        3. PROOF: MUST include one case study link from the list below.
+           Format EXACTLY:
           "Here's how we helped [similar company]: [Use Case Study Title from above](Use exact PDF URL from above)"
         4. CTA: Soft, low-pressure ask (quick chat, 10-min call, explore ideas, etc.)
-        5. CLOSE: Friendly, professional closing line
+        5. CLOSE: Friendly, professional closing line + MUST include one Zuci news reference
 
         CRITICAL REQUIREMENTS:
-        - 120–150 words ONLY
+        - 120–180 words (extended to allow news inclusion)
         - Conversational but professional tone suitable for LinkedIn
         - INCLUDE EXACT case study title + URL from the list below
+        - MUST include at least ONE Zuci news item naturally in the CLOSE or VALUE section
         - DO NOT create new or placeholder URLs
         - DO NOT output headings like "Prospect Insight", "Sales Message", etc.
         - Do NOT include section headers in the final message; write as a normal LinkedIn DM
 
         === AVAILABLE CASE STUDIES (USE ONLY THESE URLs) ===
         {case_study_text}
+
+        {zuci_news_text}
 
         === COMPANY CONTEXT (OPTIONAL FOR PERSONALIZATION) ===
         {company_context_text}
@@ -244,7 +278,14 @@ CRITICAL INSTRUCTIONS FOR CASE STUDY LINKS:
         - Start with "Hi," then a newline
         - Write a LinkedIn message using the 5-step structure
         - Do NOT include labels like "Opener:", "Value:", etc.
+        - MUST include one Zuci news reference in the CLOSE section
         - End with "Thanks"
+
+        Example news inclusion in CLOSE (with link):
+        "Looking forward to connecting! By the way, we were recently [named a Leader in Gartner's Magic Quadrant](news_link_here)."
+
+        Example without link (if no link available):
+        "Looking forward to connecting! By the way, we were recently named a Leader in Gartner's Magic Quadrant."
         """
 
     elif style == 'email' or style == 'cold_email':
@@ -269,14 +310,18 @@ Style: {tone_desc}
         +1 647 404 2503
         Toronto, ON
         Zuci Systems
+6. P.S.: MUST include at least ONE Zuci news item from below
 
 CRITICAL REQUIREMENTS:
 - MUST include SUBJECT line at the top
 - MUST include case study PDF link using EXACT URL from case studies list above
+- MUST include P.S. with one Zuci news reference
 - Professional email format
 - Data-driven where appropriate
 - DO NOT create fake URLs
 {case_study_text}
+
+{zuci_news_text}
 {company_context_text}
 
 User Intent/Draft:
@@ -294,7 +339,10 @@ OUTPUT INSTRUCTIONS:
 - Use the EXACT title and EXACT PDF URL provided
 - Integrate the case study naturally in the solution paragraph
 - Example format: "We recently helped [similar client] achieve X results. Here's the full story: [Exact Case Study Title from above](Exact PDF URL from above)"
-- The P.S. can reference a second case study if multiple are provided
+- MANDATORY P.S.: Include one Zuci news item WITH link
+- Example P.S. with link: "P.S. Exciting news - we were recently [recognized as a Leader in Gartner's Magic Quadrant](exact_news_link_from_above). Great momentum!"
+- Example P.S. without link: "P.S. Exciting news - we were recently recognized as a Leader in Gartner's Magic Quadrant. Great momentum!"
+- Use markdown format for clickable links
 """
 
     elif style == 'follow_up':
@@ -308,19 +356,23 @@ Style: {tone_desc}
 === FOLLOW-UP MESSAGE STRUCTURE (MANDATORY) ===
 1. SUBJECT LINE: Reference previous interaction, create urgency
 2. REMINDER: Brief reference to previous conversation (1 sentence)
-3. VALUE ADD: New information, case study, or insight
+3. VALUE ADD: New information, case study, or insight - MUST include Zuci news item
 4. PROOF: Case study reference using EXACT PDF link from list above (MANDATORY)
 5. CTA: Specific next step with timeline
 6. SIGNATURE: Professional closing
+7. P.S.: Additional news item reference if available
 
 CRITICAL REQUIREMENTS:
 - Acknowledge previous interaction
 - Provide new value (not just checking in)
 - MUST include case study PDF link using EXACT URL from case studies list above
+- MUST reference at least ONE Zuci news item in VALUE ADD or P.S. section
 - Create gentle urgency
-- 120-150 words
+- 120-180 words (extended to allow news inclusion)
 - DO NOT create fake URLs
 {case_study_text}
+
+{zuci_news_text}
 {company_context_text}
 
 User Intent/Draft:
@@ -336,6 +388,9 @@ OUTPUT INSTRUCTIONS:
 - Use the EXACT title and EXACT PDF URL provided
 - Integrate naturally as new value to share
 - Example format: "Since we last spoke, we helped [company] with [challenge]. See the results: [Exact Case Study Title from above](Exact PDF URL from above)"
+- MUST include one Zuci news item WITH link in VALUE ADD section
+- Example with link: "Also wanted to share - we recently [expanded to 3 new European markets](exact_news_link). This strengthens our global support for clients like you."
+- Example without link: "Also wanted to share - we recently expanded to 3 new European markets. This strengthens our global support for clients like you."
 """
 
     else:
@@ -357,12 +412,16 @@ Style: {tone_desc}
         +1 647 404 2503
         Toronto, ON
         Zuci Systems
+5. P.S.: MUST include at least ONE Zuci news item
 
 CRITICAL REQUIREMENTS:
 - MUST include case study PDF link using EXACT URL from case studies list above
+- MUST reference at least ONE Zuci news item in P.S. or closing
 - DO NOT create fake/placeholder URLs
 - Use the exact title and URL provided in the case studies section
 {case_study_text}
+
+{zuci_news_text}
 {company_context_text}
 
 User Intent: {base_message}
@@ -373,6 +432,9 @@ OUTPUT INSTRUCTIONS:
 - Create a {length} {style} message following the tone: {tone}
 - Include case study from the list above with exact title and PDF URL
 - Format: [Exact Case Study Title](Exact PDF URL)
+- MUST include P.S. with one Zuci news reference WITH link
+- Example with link: "P.S. Quick update - we recently [announced our AI-powered platform](exact_news_link). Exciting times!"
+- Example without link: "P.S. Quick update - we recently announced our AI-powered platform. Exciting times!"
 """
 
     # Log case study information for debugging

@@ -29,17 +29,20 @@ class ZuciNewsCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
     description: str = Field(..., min_length=1)
     published_date: str  # ISO format date string
+    news_link: Optional[str] = None  # URL to the news article/announcement
 
 class ZuciNewsUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = Field(None, min_length=1)
     published_date: Optional[str] = None
+    news_link: Optional[str] = None
 
 class ZuciNews(BaseModel):
     id: str
     title: str
     description: str
     published_date: str
+    news_link: Optional[str] = None
     created_by: str
     created_at: str
     updated_at: str
@@ -54,6 +57,7 @@ async def create_zuci_news(news_data: ZuciNewsCreate, current_user: User = Depen
         "title": news_data.title,
         "description": news_data.description,
         "published_date": news_data.published_date,
+        "news_link": news_data.news_link,
         "created_by": current_user.id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat()
@@ -105,6 +109,8 @@ async def update_zuci_news(
         update_data["description"] = news_data.description
     if news_data.published_date is not None:
         update_data["published_date"] = news_data.published_date
+    if news_data.news_link is not None:
+        update_data["news_link"] = news_data.news_link
 
     await db.zuci_news.update_one(
         {"id": news_id},

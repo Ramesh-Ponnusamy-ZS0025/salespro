@@ -4,7 +4,7 @@ import Layout from '../components/Layout';
 import { toast } from 'sonner';
 import {
   FileText, Upload, Download, Trash2, ChevronDown, ChevronRight,
-  File, FileImage, Search, Plus, X, Edit2, Check, Loader, Globe
+  File, FileImage, Search, Plus, X, Edit2, Check, Loader, Globe, Database
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -71,6 +71,7 @@ const DocumentManagement = ({ user, onLogout }) => {
   const [docxRenderKey, setDocxRenderKey] = useState(0);
   const [docxHtml, setDocxHtml] = useState('');
   const [scrapingZuci, setScrapingZuci] = useState(false);
+  const [syncingVector, setSyncingVector] = useState(false);
   const [pdfError, setPdfError] = useState(false);
   const [useEmbedForPdf, setUseEmbedForPdf] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
@@ -342,6 +343,49 @@ const DocumentManagement = ({ user, onLogout }) => {
     }
   };
 
+  const handleSyncVectorDatabase = async () => {
+    if (!window.confirm('This will sync all documents to the vector database for semantic search. Continue?')) return;
+
+    setSyncingVector(true);
+    toast.loading('Syncing documents to vector database...', { id: 'syncing' });
+
+    try {
+      const response = await axios.post(
+        `${API}/document-files/sync-vector-db`,
+        {},
+        {
+          timeout: 120000, // 2 minutes
+        }
+      );
+
+      if (response.data.success) {
+        const { synced_count, total_vector_db_count } = response.data;
+        toast.success(
+          `Successfully synced ${synced_count} documents! Total embeddings in vector DB: ${total_vector_db_count}`,
+          { id: 'syncing', duration: 5000 }
+        );
+      } else {
+        toast.error(response.data.message || 'Failed to sync vector database', { id: 'syncing' });
+      }
+    } catch (error) {
+      console.error('Vector sync error:', error);
+
+      let errorMessage = 'Failed to sync vector database';
+
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        errorMessage = 'Request timed out. The process may still be running on the server.';
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage, { id: 'syncing', duration: 7000 });
+    } finally {
+      setSyncingVector(false);
+    }
+  };
+
   const toggleCategory = (category) => {
     setExpandedCategories({
       ...expandedCategories,
@@ -545,6 +589,25 @@ const DocumentManagement = ({ user, onLogout }) => {
               <p className="text-gray-600">Upload and organize your documents by category and type</p>
             </div>
             <div className="flex gap-2">
+              <Button
+                onClick={handleSyncVectorDatabase}
+                disabled={syncingVector}
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-50 disabled:opacity-50"
+                title={syncingVector ? "Syncing documents to vector database..." : "Sync documents to vector database for semantic search"}
+              >
+                {syncingVector ? (
+                  <>
+                    <Loader size={16} className="mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <Database size={16} className="mr-2" />
+                    Sync Vector
+                  </>
+                )}
+              </Button>
               <Button
                 onClick={handleScrapeZuciCaseStudies}
                 disabled={scrapingZuci}

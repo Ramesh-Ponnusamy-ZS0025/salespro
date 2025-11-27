@@ -405,6 +405,8 @@ class CaseStudyManager:
         Sync documents that exist in MongoDB but not in vector database
         This is useful for backfilling existing documents that were created before vector DB
 
+        Reads document content and generates summaries if needed
+
         Returns:
             Number of documents successfully synced
         """
@@ -424,13 +426,10 @@ class CaseStudyManager:
             vector_db_ids = set(self.vector_db.get_all_file_ids())
             logger.info(f"Vector DB contains {len(vector_db_ids)} documents")
 
-            # Get all documents from MongoDB with valid data
-            all_docs = await self.db.document_files.find({
-                'title': {'$ne': 'Untitled'},
-                'summary': {'$exists': True, '$ne': ''}
-            }).to_list(None)  # Get all documents
+            # Get ALL documents from MongoDB (not just those with title/summary)
+            all_docs = await self.db.document_files.find({}).to_list(None)
 
-            logger.info(f"MongoDB contains {len(all_docs)} valid documents")
+            logger.info(f"MongoDB contains {len(all_docs)} total documents")
 
             # Find documents that are in MongoDB but not in vector DB
             synced_count = 0
@@ -440,6 +439,7 @@ class CaseStudyManager:
             for doc in all_docs:
                 try:
                     file_id = doc.get('id')
+                    print('file_id',file_id)
 
                     # Skip if no file_id
                     if not file_id:
@@ -453,28 +453,74 @@ class CaseStudyManager:
                     # This document is missing from vector DB
                     missing_count += 1
 
-                    file_url = doc.get('metadata', {}).get('source_url', '')
-                    title = doc.get('title', 'Untitled')
-                    summary = doc.get('summary', '')
-                    category = doc.get('category', '')
+                    # Use filename instead of title (document_files use filename, not title)
+                    filename = doc.get('filename', 'Untitled')
+                    title = doc.get('title', filename)  # Fallback to filename if no title
 
-                    # Validate data
-                    if not summary or len(summary.strip()) < 10 or title == 'Untitled':
-                        logger.debug(f"Skipping '{title}' (ID: {file_id}) - insufficient data")
+                    file_url = doc.get('metadata', {}).get('source_url', '') if doc.get('metadata') else ''
+                    category = doc.get('category', '')
+                    doc_type = doc.get('doc_type', '')
+
+                    # Get or generate summary
+                    summary = doc.get('summary', '')
+
+                    # If no summary exists, generate one from filename and metadata
+                    if not summary or len(summary.strip()) < 10:
+                        # Create a basic summary from available data
+                        summary_parts = []
+                        if category:
+                            summary_parts.append(f"{category} industry")
+                        if doc_type:
+                            summary_parts.append(doc_type.lower())
+                        summary_parts.append(f"document: {filename}")
+
+                        # Try to extract text from document content if it's a text-based format
+                        file_content = doc.get('file_content', '')
+                        mime_type = doc.get('mime_type', '')
+
+                        if file_content and 'text' in mime_type.lower():
+                            try:
+                                import base64
+                                decoded = base64.b64decode(file_content).decode('utf-8', errors='ignore')
+                                # Take first 200 characters as summary
+                                if len(decoded.strip()) > 20:
+                                    summary_parts.append(decoded[:200].strip())
+                            except:
+                                pass
+
+                        summary = '. '.join(summary_parts) if summary_parts else f"{category} {doc_type} - {filename}"
+
+                        logger.info(f"Generated summary for '{filename}': {summary[:100]}...")
+
+                    # Validate we have minimum data
+                    if not summary:
+                        logger.debug(f"Skipping '{filename}' (ID: {file_id}) - cannot generate summary")
                         skipped_count += 1
                         continue
 
                     # Store in vector DB
-                    logger.info(f"📝 Creating embedding for: {title}")
-                    if self.store_in_vector_db(file_id, file_url, title, summary, category):
+                    logger.info(f"📝 Creating embedding for: {filename}")
+                    if self.store_in_vector_db(file_id, file_url, filename, summary, category):
                         synced_count += 1
-                        logger.info(f"✓ Synced to vector DB: {title}")
+                        logger.info(f"✓ Synced to vector DB: {filename}")
+
+                        # Update MongoDB with generated summary if it was created
+                        if not doc.get('summary'):
+                            try:
+                                await self.db.document_files.update_one(
+                                    {'id': file_id},
+                                    {'$set': {'summary': summary}}
+                                )
+                                logger.info(f"  ✓ Updated MongoDB with generated summary")
+                            except Exception as update_error:
+                                logger.debug(f"Could not update summary in MongoDB: {update_error}")
 
                 except Exception as doc_error:
                     logger.warning(f"Error processing document: {doc_error}")
                     continue
 
             logger.info(f"✅ Sync complete: {synced_count} new documents added to vector DB")
+            logger.info(f"   Total in MongoDB: {len(all_docs)}")
             logger.info(f"   Missing from vector DB: {missing_count}")
             logger.info(f"   Successfully synced: {synced_count}")
             logger.info(f"   Skipped (invalid data): {skipped_count}")
@@ -490,6 +536,7 @@ class CaseStudyManager:
     async def sync_from_mongodb(self, max_docs: int = 1000) -> int:
         """
         Sync all case studies from MongoDB to vector database
+        Reads document content and generates summaries if needed
 
         Args:
             max_docs: Maximum number of documents to sync
@@ -514,7 +561,7 @@ class CaseStudyManager:
                 {},
                 {"_id": 0}
             ).limit(max_docs).to_list(max_docs)
-
+            print(all_docs)
             synced_count = 0
             skipped_count = 0
             error_count = 0
@@ -522,10 +569,6 @@ class CaseStudyManager:
             for doc in all_docs:
                 try:
                     file_id = doc.get('id')
-                    file_url = doc.get('metadata', {}).get('source_url', '')
-                    title = doc.get('title', 'Untitled')
-                    summary = doc.get('summary', '')
-                    category = doc.get('category', '')
 
                     # Skip if no file_id
                     if not file_id:
@@ -533,15 +576,65 @@ class CaseStudyManager:
                         skipped_count += 1
                         continue
 
-                    # Skip if no summary or title is still "Untitled"
-                    if not summary or len(summary.strip()) < 10 or title == 'Untitled':
-                        logger.debug(f"Skipping '{title}' (ID: {file_id}) - insufficient data")
+                    # Use filename instead of title (document_files use filename, not title)
+                    filename = doc.get('filename', 'Untitled')
+                    title = doc.get('title', filename)  # Fallback to filename if no title
+
+                    file_url = doc.get('metadata', {}).get('source_url', '') if doc.get('metadata') else ''
+                    category = doc.get('category', '')
+                    doc_type = doc.get('doc_type', '')
+
+                    # Get or generate summary
+                    summary = doc.get('summary', '')
+
+                    # If no summary exists, generate one from filename and metadata
+                    if not summary or len(summary.strip()) < 10:
+                        # Create a basic summary from available data
+                        summary_parts = []
+                        if category:
+                            summary_parts.append(f"{category} industry")
+                        if doc_type:
+                            summary_parts.append(doc_type.lower())
+                        summary_parts.append(f"document: {filename}")
+
+                        # Try to extract text from document content if it's a text-based format
+                        file_content = doc.get('file_content', '')
+                        mime_type = doc.get('mime_type', '')
+
+                        if file_content and 'text' in mime_type.lower():
+                            try:
+                                import base64
+                                decoded = base64.b64decode(file_content).decode('utf-8', errors='ignore')
+                                # Take first 200 characters as summary
+                                if len(decoded.strip()) > 20:
+                                    summary_parts.append(decoded[:200].strip())
+                            except:
+                                pass
+
+                        summary = '. '.join(summary_parts) if summary_parts else f"{category} {doc_type} - {filename}"
+                        logger.info(f"Generated summary for '{filename}': {summary[:100]}...")
+
+                    # Validate we have minimum data
+                    if not summary or len(summary.strip()) < 5:
+                        logger.debug(f"Skipping '{filename}' (ID: {file_id}) - cannot generate summary")
                         skipped_count += 1
                         continue
 
                     # Store in vector DB
-                    if self.store_in_vector_db(file_id, file_url, title, summary, category):
+                    if self.store_in_vector_db(file_id, file_url, filename, summary, category):
                         synced_count += 1
+
+                        # Update MongoDB with generated summary if it was created
+                        if not doc.get('summary'):
+                            try:
+                                await self.db.document_files.update_one(
+                                    {'id': file_id},
+                                    {'$set': {'summary': summary}}
+                                )
+                                logger.info(f"  ✓ Updated MongoDB with generated summary for {filename}")
+                            except Exception as update_error:
+                                logger.debug(f"Could not update summary in MongoDB: {update_error}")
+
                 except Exception as doc_error:
                     logger.warning(f"Error processing document: {doc_error}")
                     error_count += 1
@@ -801,15 +894,17 @@ Do not include any explanation, just the score.
     ) -> str:
         """
         Format case study reference for inclusion in content
-        
+
         Args:
             case_study: Case study document
             context: 'inline', 'ps', or 'standalone'
-        
+
         Returns:
             Formatted reference string
         """
-        title = case_study.get('title', 'Untitled Case Study')
+        # Use filename as fallback for title (document_files use filename, not title)
+        filename = case_study.get('filename', 'Untitled Case Study')
+        title = case_study.get('title', filename)
         summary = case_study.get('summary', '')
         source_url = case_study.get('metadata', {}).get('source_url', '')
         
@@ -927,4 +1022,34 @@ Do not include any explanation, just the score.
 
         except Exception as e:
             logger.error(f"Error in thread-based case study matching: {e}")
+            return []
+
+    async def get_latest_zuci_news(self, max_results: int = 2) -> List[Dict[str, Any]]:
+        """
+        Get the latest Zuci news items sorted by published_date
+
+        Args:
+            max_results: Maximum number of news items to return (default: 2)
+
+        Returns:
+            List of zuci_news dictionaries with id, title, description, published_date
+        """
+        try:
+            logger.info(f"Fetching latest {max_results} Zuci news items...")
+
+            # Fetch latest news from zuci_news collection, sorted by published_date descending
+            news_items = await self.db.zuci_news.find(
+                {},
+                {"_id": 0}
+            ).sort("published_date", -1).limit(max_results).to_list(max_results)
+
+            if news_items:
+                logger.info(f"✓ Found {len(news_items)} Zuci news items")
+                return news_items
+            else:
+                logger.warning("No Zuci news items found in database")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error fetching Zuci news: {e}")
             return []
