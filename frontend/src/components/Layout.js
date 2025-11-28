@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Megaphone, MessageSquare, Mail, FileText, Globe, TrendingUp, Bookmark, FolderOpen, LogOut, Newspaper, ChevronDown, ChevronRight, Scale } from 'lucide-react';
 
@@ -34,6 +34,18 @@ const Layout = ({ children, user, onLogout }) => {
   const isSubmenuActive = (submenu) => {
     return submenu.some(item => location.pathname === item.path);
   };
+
+  // Auto-expand Content Management menu when on a submenu page
+  useEffect(() => {
+    navItems.forEach(item => {
+      if (item.submenu && isSubmenuActive(item.submenu)) {
+        setExpandedMenus(prev => ({
+          ...prev,
+          [item.label]: true
+        }));
+      }
+    });
+  }, [location.pathname]);
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50" data-testid="layout-container">

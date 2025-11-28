@@ -31,6 +31,7 @@ import thread_intelligence
 import documents
 import document_management
 import zuci_news
+import content_management
 
 # ============== LOGGING SETUP (Must be early) ==============
 
@@ -143,6 +144,7 @@ async def startup_event():
     documents.set_db(db)
     document_management.set_db(db)
     zuci_news.set_db(db)
+    content_management.set_db(db)
 
     # Set LLM helper for modules that need it
     agent_builder.set_llm_helper(generate_llm_response)
@@ -197,6 +199,7 @@ app.include_router(thread_intelligence.router)
 app.include_router(documents.router)
 app.include_router(document_management.router)
 app.include_router(zuci_news.router)
+app.include_router(content_management.router)
 
 # ============== CORS MIDDLEWARE ==============
 
