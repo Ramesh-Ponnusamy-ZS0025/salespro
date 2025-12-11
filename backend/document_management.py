@@ -324,12 +324,13 @@ async def get_document_categories(current_user: User = Depends(get_current_user)
 # ============== ZUCI CASE STUDIES SCRAPER ==============
 
 async def crawl_zuci_with_playwright() -> List[Dict[str, Any]]:
-    """Crawl Zuci using Playwright (bypasses Cloudflare/bot detection)"""
+    """Crawl Zuci using Playwright (bypasses Cloudflare/bot detection) - Gets ALL case studies"""
     if not PLAYWRIGHT_AVAILABLE:
         raise ImportError("Playwright not installed. Run: pip install playwright && playwright install")
 
     base_url = "https://www.zucisystems.com/category/casestudy/"
     case_studies = []
+    visited_urls = set()
 
     async with async_playwright() as p:
         # Launch browser with stealth settings
@@ -368,57 +369,88 @@ async def crawl_zuci_with_playwright() -> List[Dict[str, Any]]:
         page = await context.new_page()
 
         try:
-            logger.info("🔄 Navigating to case studies page with Playwright...")
+            logger.info("🔄 Crawling ALL case studies from Zuci Systems...")
 
-            # Navigate faster with domcontentloaded instead of networkidle
-            response = await page.goto(base_url, wait_until='domcontentloaded', timeout=30000)
+            case_study_links = set()
+            page_num = 1
+            max_pages = 15  # Safety limit to prevent infinite loops
 
-            if response and response.status == 403:
-                logger.error("❌ Got 403 even with Playwright - Cloudflare protection is very strict")
-                await browser.close()
-                return []
+            # Crawl all pagination pages to get ALL case study links
+            while page_num <= max_pages:
+                current_url = f"{base_url}page/{page_num}/" if page_num > 1 else base_url
+                logger.info(f"📄 Scanning page {page_num}: {current_url}")
 
-            # Brief wait for dynamic content (reduced from 2-4s to 1s)
-            await asyncio.sleep(1)
-            logger.info("✓ Main page loaded successfully")
-
-            # Get the page content
-            html = await page.content()
-            soup = BeautifulSoup(html, 'html.parser')
-
-            # Find all case study links
-            case_study_links = []
-
-            # Extract links using JavaScript to get dynamically loaded content
-            links = await page.query_selector_all('a[href]')
-
-            for link_element in links:
-                href = await link_element.get_attribute('href')
-                if href and any(keyword in href.lower() for keyword in ['case', 'study', 'success', 'story', 'customer']):
-                    if href.startswith('/'):
-                        href = f"https://www.zucisystems.com{href}"
-                    elif not href.startswith('http'):
-                        continue
-
-                    if 'zucisystems.com' in href:
-                        case_study_links.append(href)
-
-            case_study_links = list(set(case_study_links))
-            logger.info(f"✓ Found {len(case_study_links)} potential case study links")
-
-            # Process fewer case studies for faster results (10 instead of 20)
-            max_studies = min(10, len(case_study_links))
-            logger.info(f"📊 Processing {max_studies} case studies...")
-
-            # Extract info from each case study
-            for idx, link in enumerate(case_study_links[:max_studies]):
                 try:
-                    logger.info(f"📄 [{idx + 1}/{max_studies}] Processing: {link[:60]}...")
+                    response = await page.goto(current_url, wait_until='domcontentloaded', timeout=30000)
 
-                    # Reduced sleep from 2-5s to 0.5-1s
-                    await asyncio.sleep(random.uniform(0.5, 1))
+                    if response and response.status == 404:
+                        logger.info(f"✓ Reached end of pagination at page {page_num}")
+                        break
 
-                    # Faster navigation with domcontentloaded (reduced timeout from 60s to 20s)
+                    if response and response.status == 403:
+                        logger.error("❌ Got 403 - Cloudflare protection triggered")
+                        break
+
+                    # Wait for content to load
+                    await asyncio.sleep(0.5)
+
+                    # Extract all case study links from this page
+                    links = await page.query_selector_all('a[href]')
+                    page_links_found = 0
+
+                    for link_element in links:
+                        href = await link_element.get_attribute('href')
+                        if not href:
+                            continue
+
+                        # Normalize URL
+                        if href.startswith('/'):
+                            href = f"https://www.zucisystems.com{href}"
+                        elif not href.startswith('http'):
+                            continue
+
+                        # Check if it's a case study link
+                        if 'zucisystems.com' in href and any(keyword in href.lower() for keyword in ['case', 'study', 'success', 'story']):
+                            # Exclude pagination and category URLs
+                            if '/page/' not in href and '/category/' not in href:
+                                if href not in case_study_links:
+                                    case_study_links.add(href)
+                                    page_links_found += 1
+
+                    logger.info(f"   ✓ Found {page_links_found} new case study links on page {page_num}")
+
+                    # Check if there's a next page link
+                    next_button = await page.query_selector('a.next, a[rel="next"], .pagination .next')
+                    if not next_button and page_links_found == 0:
+                        logger.info(f"✓ No more pages found after page {page_num}")
+                        break
+
+                    page_num += 1
+
+                except Exception as e:
+                    logger.warning(f"Error on page {page_num}: {str(e)}")
+                    break
+
+            logger.info(f"✅ Total case study links discovered: {len(case_study_links)}")
+
+            # Now process ALL discovered case studies
+            total_studies = len(case_study_links)
+            logger.info(f"📊 Processing all {total_studies} case studies...")
+
+            # Process case studies in batches for better performance
+            for idx, link in enumerate(case_study_links, 1):
+                if link in visited_urls:
+                    continue
+
+                visited_urls.add(link)
+
+                try:
+                    logger.info(f"📄 [{idx}/{total_studies}] Processing: {link[:70]}...")
+
+                    # Minimal wait to avoid overwhelming the server
+                    await asyncio.sleep(random.uniform(0.2, 0.4))
+
+                    # Navigate to case study page
                     cs_response = await page.goto(link, wait_until='domcontentloaded', timeout=20000)
 
                     if cs_response and cs_response.status != 200:
@@ -429,7 +461,7 @@ async def crawl_zuci_with_playwright() -> List[Dict[str, Any]]:
                     title = await page.title()
                     html = await page.content()
                     soup = BeautifulSoup(html, 'html.parser')
-                    logger.info(f"   ✓ Loaded: {title[:50]}")
+                    logger.info(f"   ✓ Loaded: {title[:60]}")
 
                     # Extract description
                     description = None
@@ -437,7 +469,8 @@ async def crawl_zuci_with_playwright() -> List[Dict[str, Any]]:
                     if desc_meta:
                         description = desc_meta.get('content', '').strip()
                     elif soup.find('p'):
-                        description = soup.find('p').get_text().strip()[:200]
+                        first_p = soup.find('p')
+                        description = first_p.get_text().strip()[:300] if first_p else None
 
                     # Extract category/type
                     page_text = soup.get_text().lower()
@@ -447,10 +480,24 @@ async def crawl_zuci_with_playwright() -> List[Dict[str, Any]]:
                     elif 'use case' in page_text:
                         case_type = "Use Case"
 
+                    # More comprehensive category detection
                     category = "General"
-                    for keyword in ['AI', 'Healthcare', 'Finance', 'Retail', 'Manufacturing', 'Technology']:
-                        if keyword.lower() in page_text:
-                            category = keyword
+                    category_keywords = {
+                        'AI': ['artificial intelligence', 'machine learning', 'deep learning', 'ai'],
+                        'Healthcare': ['healthcare', 'health', 'medical', 'hospital', 'patient'],
+                        'Finance': ['finance', 'banking', 'fintech', 'payment', 'financial'],
+                        'Retail': ['retail', 'e-commerce', 'ecommerce', 'shopping'],
+                        'Manufacturing': ['manufacturing', 'factory', 'production', 'industrial'],
+                        'Technology': ['technology', 'tech', 'software', 'digital'],
+                        'Insurance': ['insurance', 'insurer', 'policy'],
+                        'Education': ['education', 'learning', 'training', 'university'],
+                        'Automotive': ['automotive', 'vehicle', 'car'],
+                        'Logistics': ['logistics', 'supply chain', 'warehouse', 'shipping']
+                    }
+
+                    for cat, keywords in category_keywords.items():
+                        if any(kw in page_text for kw in keywords):
+                            category = cat
                             break
 
                     # Find PDF link
@@ -461,25 +508,29 @@ async def crawl_zuci_with_playwright() -> List[Dict[str, Any]]:
                             pdf_url = href if href.startswith('http') else urljoin(link, href)
                             break
 
-                    # Download PDF if found
+                    # Download PDF if found (with retry logic)
                     file_content = None
                     file_size = 0
                     filename = None
 
                     if pdf_url:
                         filename = pdf_url.split('/')[-1].split('?')[0]
-                        logger.info(f"   📥 Downloading PDF from: {pdf_url[:50]}...")
+                        if not filename.endswith('.pdf'):
+                            filename = f"{title[:30].replace(' ', '_')}.pdf"
 
-                        # Use page context to download with timeout (maintains session/cookies)
+                        logger.info(f"   📥 Downloading PDF: {filename[:40]}...")
+
                         try:
-                            pdf_response = await context.request.get(pdf_url, timeout=15000)  # 15s timeout
+                            pdf_response = await context.request.get(pdf_url, timeout=20000)
                             if pdf_response.status == 200:
                                 pdf_data = await pdf_response.body()
                                 file_content = base64.b64encode(pdf_data).decode('utf-8')
                                 file_size = len(pdf_data)
-                                logger.info(f"   ✓ Downloaded: {filename} ({file_size // 1024}KB)")
+                                logger.info(f"   ✅ Downloaded: {filename} ({file_size // 1024}KB)")
+                            else:
+                                logger.warning(f"   ⚠️  PDF download failed: {pdf_response.status}")
                         except asyncio.TimeoutError:
-                            logger.warning(f"   ⚠️  PDF download timeout: {pdf_url[:50]}")
+                            logger.warning(f"   ⚠️  PDF download timeout")
                         except Exception as e:
                             logger.warning(f"   ⚠️  PDF download error: {str(e)[:50]}")
 
@@ -496,9 +547,17 @@ async def crawl_zuci_with_playwright() -> List[Dict[str, Any]]:
                         'tags': []
                     })
 
+                    # Progress update every 10 items
+                    if idx % 10 == 0:
+                        logger.info(f"📊 Progress: {idx}/{total_studies} case studies processed ({len([cs for cs in case_studies if cs.get('file_content')])} with PDFs)")
+
                 except Exception as e:
-                    logger.error(f"Error processing case study {link}: {str(e)}")
+                    logger.error(f"Error processing {link}: {str(e)}")
                     continue
+
+            logger.info(f"✅ Extraction complete! Processed {len(case_studies)} case studies")
+            logger.info(f"   📄 With PDFs: {len([cs for cs in case_studies if cs.get('file_content')])}")
+            logger.info(f"   📝 Text only: {len([cs for cs in case_studies if not cs.get('file_content')])}")
 
         except Exception as e:
             logger.error(f"Error with Playwright scraping: {str(e)}")
