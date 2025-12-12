@@ -1,0 +1,32 @@
+[
+  {
+    "title": "AI-Powered Healthcare Platform Transformation",
+    "excerpt": "Zuci helped a leading healthcare provider implement an AI-driven patient management system, reducing wait times by 40% and improving patient satisfaction scores by 35%.",
+    "url": "https://www.zucisystems.com/case-study/healthcare-ai-transformation",
+    "categories": ["Healthcare", "AI/ML", "Digital Transformation"],
+    "keywords": ["ai", "healthcare", "transformation", "automation", "data"],
+    "industry": "Healthcare",
+    "technologies": ["Python", "TensorFlow", "AWS", "React"],
+    "results": "40% reduction in wait times, 35% improvement in satisfaction"
+  },
+  {
+    "title": "Banking Data Analytics Modernization",
+    "excerpt": "Transformed legacy banking systems with modern data analytics platform, enabling real-time fraud detection and reducing processing time by 60%.",
+    "url": "https://www.zucisystems.com/case-study/banking-analytics",
+    "categories": ["BFSI", "Data Analytics", "Cloud Migration"],
+    "keywords": ["banking", "finance", "analytics", "data", "cloud"],
+    "industry": "Banking & Finance",
+    "technologies": ["Spark", "Kafka", "Azure", "PowerBI"],
+    "results": "60% faster processing, Real-time fraud detection"
+  },
+  {
+    "title": "E-Commerce Mobile App Development",
+    "excerpt": "Built a scalable mobile commerce platform handling 1M+ daily transactions with 99.9% uptime and seamless user experience.",
+    "url": "https://www.zucisystems.com/case-study/ecommerce-mobile",
+    "categories": ["Retail", "Mobile Development", "E-Commerce"],
+    "keywords": ["mobile", "retail", "ecommerce", "api", "cloud"],
+    "industry": "Retail",
+    "technologies": ["React Native", "Node.js", "MongoDB", "AWS"],
+    "results": "1M+ daily transactions, 99.9% uptime"
+  }
+]

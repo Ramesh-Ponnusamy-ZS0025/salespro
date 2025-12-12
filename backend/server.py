@@ -33,6 +33,12 @@ import document_management
 import zuci_news
 import content_management
 
+# Import new Chrome extension modules
+from modules.content_generation import routes as content_generation
+from modules.case_studies import routes as case_studies
+from modules.custom_instructions import routes as custom_instructions
+from modules.content_generation.ai_service import AIContentGenerator
+
 # ============== LOGGING SETUP (Must be early) ==============
 
 logging.basicConfig(
@@ -180,6 +186,16 @@ async def startup_event():
     # Set case study manager for GTM module
     gtm.set_case_study_manager(case_study_manager)
 
+    # Initialize AI Content Generator for Chrome extension
+    ai_generator = AIContentGenerator()
+
+    # Set database and dependencies for new Chrome extension modules
+    content_generation.set_db(db)
+    content_generation.set_ai_generator(ai_generator)
+    case_studies.set_db(db)
+    case_studies.set_case_study_manager(case_study_manager)
+    custom_instructions.set_db(db)
+
     logging.info("SalesPro API started successfully")
 
 # ============== SHUTDOWN EVENT ==============
@@ -200,6 +216,11 @@ app.include_router(documents.router)
 app.include_router(document_management.router)
 app.include_router(zuci_news.router)
 app.include_router(content_management.router)
+
+# Include Chrome extension routers
+app.include_router(content_generation.router)
+app.include_router(case_studies.router)
+app.include_router(custom_instructions.router)
 
 # ============== CORS MIDDLEWARE ==============
 

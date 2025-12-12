@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaRaZ - AI Sales Assistant</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="sidepanel-container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">TaRaZ</span>
+      </div>
+      <div class="header-actions">
+        <button class="settings-btn" id="settingsBtn" title="Settings">⚙️</button>
+        <button class="close-btn" id="closeBtn">×</button>
+      </div>
+    </div>
+
+    <!-- Login Page -->
+    <div class="login-container hidden" id="loginContainer">
+      <div class="login-content">
+        <div class="login-header">
+          <div class="login-logo">
+            <span class="logo-icon-large">⚡</span>
+          </div>
+          <h1>Welcome to TaRaZ</h1>
+          <p>AI-Powered Sales Assistant</p>
+        </div>
+
+        <form id="loginForm" class="login-form">
+          <div class="form-group">
+            <label for="loginEmail">Email</label>
+            <input
+              type="email"
+              id="loginEmail"
+              class="form-input"
+              placeholder="Enter your email"
+              required
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input
+              type="password"
+              id="loginPassword"
+              class="form-input"
+              placeholder="Enter your password"
+              required
+            >
+          </div>
+
+          <div class="login-error hidden" id="loginError">
+            Invalid email or password
+          </div>
+
+          <button type="submit" class="btn-login" id="loginBtn">
+            <span class="btn-text">Sign In</span>
+            <span class="btn-spinner hidden">
+              <div class="spinner-small"></div>
+            </span>
+          </button>
+        </form>
+
+        <div class="login-footer">
+          <p>Don't have an account? <a href="#" id="signupLink">Sign up</a></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content (Steps) -->
+    <div class="main-content hidden" id="mainContent">
+
+    <!-- Progress Indicator -->
+    <div class="progress-bar">
+      <div class="progress-step active" data-step="1">
+        <div class="step-number">1</div>
+        <div class="step-label">Select Insights</div>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step" data-step="2">
+        <div class="step-number">2</div>
+        <div class="step-label">Customize</div>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step" data-step="3">
+        <div class="step-number">3</div>
+        <div class="step-label">Generated Content</div>
+      </div>
+    </div>
+
+    <!-- STEP 1: Select Insights -->
+    <div class="step step-1 active" id="step1">
+      <div class="step-header">
+        <h2>Step 1 of 2: Select insights to power your content</h2>
+        <div class="selection-counter">
+          Selected <span id="selectedCount">0</span>/<span id="totalCount">0</span>
+        </div>
+      </div>
+
+      <!-- Profile Summary -->
+      <div class="profile-card">
+        <div class="profile-avatar" id="profileAvatar"></div>
+        <div class="profile-info">
+          <h3 id="profileName">Loading...</h3>
+          <p id="profileTitle"></p>
+          <div class="profile-meta">
+            <span id="profileCompany"></span>
+            <span id="profileLocation"></span>
+          </div>
+
+          <!-- Additional Profile Details -->
+          <div class="profile-details" id="profileDetails" style="margin-top: 12px;">
+            <!-- About section -->
+            <div id="profileAbout" style="display: none; margin-bottom: 8px;">
+              <strong style="font-size: 12px; color: #666;">📝 About:</strong>
+              <p id="profileAboutText" style="font-size: 12px; color: #444; margin: 4px 0; line-height: 1.4;"></p>
+            </div>
+
+            <!-- Latest Posts section -->
+            <div id="profilePosts" style="display: none; margin-bottom: 8px;">
+              <strong style="font-size: 12px; color: #666;">📰 Latest Posts:</strong>
+              <div id="profilePostsList" style="margin-top: 4px;"></div>
+            </div>
+
+            <!-- Experience section -->
+            <div id="profileExperience" style="display: none; margin-bottom: 8px;">
+              <strong style="font-size: 12px; color: #666;">💼 Experience:</strong>
+              <p id="profileExperienceText" style="font-size: 12px; color: #444; margin: 4px 0;"></p>
+            </div>
+
+            <!-- Skills section -->
+            <div id="profileSkills" style="display: none; margin-bottom: 8px;">
+              <strong style="font-size: 12px; color: #666;">🎯 Skills:</strong>
+              <p id="profileSkillsText" style="font-size: 12px; color: #444; margin: 4px 0;"></p>
+            </div>
+
+            <!-- Certifications section -->
+            <div id="profileCertifications" style="display: none; margin-bottom: 8px;">
+              <strong style="font-size: 12px; color: #666;">🏅 Certifications:</strong>
+              <div id="profileCertificationsList" style="margin-top: 4px;"></div>
+            </div>
+
+            <!-- Languages section -->
+            <div id="profileLanguages" style="display: none; margin-bottom: 8px;">
+              <strong style="font-size: 12px; color: #666;">🌐 Languages:</strong>
+              <p id="profileLanguagesText" style="font-size: 12px; color: #444; margin: 4px 0;"></p>
+            </div>
+
+            <!-- Education section -->
+            <div id="profileEducation" style="display: none; margin-bottom: 8px;">
+              <strong style="font-size: 12px; color: #666;">🎓 Education:</strong>
+              <div id="profileEducationList" style="margin-top: 4px;"></div>
+            </div>
+
+            <!-- Recommendations section -->
+            <div id="profileRecommendations" style="display: none;">
+              <strong style="font-size: 12px; color: #666;">⭐ Recommendations:</strong>
+              <div id="profileRecommendationsList" style="margin-top: 4px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Insights List -->
+      <div class="insights-container" id="insightsContainer">
+        <div class="insights-loading">
+          <div class="spinner-small"></div>
+          <p>Analyzing LinkedIn profile...</p>
+        </div>
+      </div>
+
+      <!-- Step 1 Actions -->
+      <div class="step-actions">
+        <button class="btn-secondary" id="backBtn" disabled>← Back</button>
+        <button class="btn-primary" id="nextBtn">Next: Customize Content →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Customize Content -->
+    <div class="step step-2" id="step2">
+      <div class="step-header">
+        <h2>Step 2 of 2: Customize Your Content</h2>
+        <div class="relevance-score">
+          <span class="score-label">Score</span>
+          <span class="score-value" id="finalScore">99</span>
+        </div>
+      </div>
+
+      <div class="form-container">
+        <!-- Value Proposition -->
+        <div class="form-group">
+          <label for="valuePropositionSelect">
+            <span class="label-icon">💎</span>
+            Select Your Value Proposition
+          </label>
+          <select id="valuePropositionSelect" class="form-select">
+            <option value="">Personal Default Value Prop</option>
+          </select>
+        </div>
+
+        <!-- Sales Assets (Case Studies) -->
+        <div class="form-group">
+          <label>
+            <span class="label-icon">📚</span>
+            Add Sales Assets
+            <span class="label-hint">(i.e case studies, white papers, product info)</span>
+          </label>
+          <button class="btn-asset" id="addAssetsBtn">+ Add Assets</button>
+          <div class="selected-assets" id="selectedAssets"></div>
+        </div>
+
+        <!-- Content Focus -->
+        <div class="form-group">
+          <label for="contentFocus">
+            <span class="label-icon">🎯</span>
+            Focus Content On
+            <span class="label-hint">(choose which profile aspect to emphasize)</span>
+          </label>
+          <select id="contentFocus" class="form-select">
+            <option value="all">All Profile Data (Default)</option>
+            <option value="recent_posts">📰 Recent Posts</option>
+            <option value="skills">🎯 Skills & Expertise</option>
+            <option value="recommendations">⭐ Recommendations</option>
+            <option value="geography">📍 Geography & Location</option>
+            <option value="about">📝 Profile Description (About)</option>
+            <option value="education">🎓 Education Background</option>
+            <option value="experience">💼 Work Experience</option>
+          </select>
+        </div>
+
+        <!-- Writing Style -->
+        <div class="form-group">
+          <label for="writingStyle">
+            <span class="label-icon">✍️</span>
+            Choose Your Writing Style
+          </label>
+          <select id="writingStyle" class="form-select">
+            <option value="data-driven">Data-Driven</option>
+            <option value="formal-human">Formal / Human</option>
+            <option value="cxo-pitch">CXO Pitch</option>
+            <option value="challenger">Challenger-Style Persuasion</option>
+            <option value="basho">BASHO-Style</option>
+            <option value="poet">Z Poet</option>
+            <option value="urgency">Urgency-Framing Conversion Style</option>
+            <option value="executive">Executive Briefing Style</option>
+          </select>
+          <a href="#" class="create-custom-link" id="createCustomStyle">Want to generate content with a unique style? Create a custom style</a>
+        </div>
+
+        <!-- Additional Instructions -->
+        <div class="form-group">
+          <label for="additionalInput">
+            <span class="label-icon">💡</span>
+            Know Something We Don't?
+            <span class="label-hint">(i.e we met for coffee last week)</span>
+          </label>
+          <textarea id="additionalInput" class="form-textarea" placeholder="Type your custom instructions..."></textarea>
+          <div class="instruction-actions">
+            <button class="btn-small" id="saveInstructionBtn">💾 Save for future use</button>
+            <select id="savedInstructionsSelect" class="form-select-small">
+              <option value="">Load saved instruction...</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Message Length -->
+        <div class="form-group">
+          <label for="messageLength">
+            <span class="label-icon">📏</span>
+            Message Length
+          </label>
+          <select id="messageLength" class="form-select">
+            <option value="<100">Below 100 words</option>
+            <option value="100-200" selected>100-200 words</option>
+            <option value="200-300">200-300 words</option>
+            <option value="500">500 words</option>
+            <option value="long">Long paragraph</option>
+          </select>
+        </div>
+
+        <!-- Content Type -->
+        <div class="form-group">
+          <label>
+            <span class="label-icon">📝</span>
+            Content type
+          </label>
+          <div class="button-group">
+            <button class="option-btn active" data-type="email">Email</button>
+            <button class="option-btn" data-type="linkedin_dm">LinkedIn DM</button>
+            <button class="option-btn" data-type="opener">Opener</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 Actions -->
+      <div class="step-actions">
+        <button class="btn-secondary" id="backToStep1">← Back to Insights</button>
+        <button class="btn-generate" id="generateContentBtn">
+          <span class="btn-icon">✨</span>
+          Write Hyper-Personalized Content
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Generated Content -->
+    <div class="step step-3" id="step3">
+      <div class="step-header">
+        <h2>Step 3 of 3: Your Personalized Content</h2>
+        <div class="relevance-score">
+          <span class="score-label">Score</span>
+          <span class="score-value" id="finalScoreStep3">99</span>
+        </div>
+      </div>
+
+      <!-- Generated Content Section -->
+      <div class="content-section" id="contentSection">
+        <div class="content-header">
+          <h4>Your Personalized Content</h4>
+          <div class="content-actions">
+            <button class="btn-icon-only" id="copyBtn" title="Copy to clipboard">📋</button>
+            <button class="btn-icon-only" id="regenerateBtn" title="Regenerate">🔄</button>
+          </div>
+        </div>
+        <div class="generated-content" id="generatedContent"></div>
+        <div class="content-footer">
+          <div class="content-stats">
+            <span id="wordCount">0 words</span>
+            <span class="separator">•</span>
+            <span id="charCount">0 characters</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 Actions -->
+      <div class="step-actions">
+        <button class="btn-secondary" id="backToStep2">← Back to Customize</button>
+        <button class="btn-primary" id="generateVariationBtn">Generate Another Variation</button>
+      </div>
+    </div>
+
+    </div>
+    <!-- End Main Content -->
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p id="loadingText">Generating hyper-personalized content...</p>
+        <p class="loading-subtext">This may take 5-10 seconds</p>
+      </div>
+    </div>
+
+    <!-- Case Studies Modal -->
+    <div class="modal hidden" id="assetModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Select Case Studies</h3>
+          <button class="modal-close" id="closeModalBtn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="assetSearch" placeholder="Search case studies by industry, technology, or keyword...">
+          </div>
+          <div class="relevance-info">
+            Showing most relevant case studies based on prospect's profile
+          </div>
+          <div class="assets-list" id="assetsList">
+            <div class="assets-loading">
+              <div class="spinner-small"></div>
+              <p>Loading case studies...</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="cancelAssetsBtn">Cancel</button>
+          <button class="btn-primary" id="addSelectedAssetsBtn">Add Selected (<span id="selectedAssetsCount">0</span>)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom Instruction Save Modal -->
+    <div class="modal hidden" id="saveInstructionModal">
+      <div class="modal-content modal-small">
+        <div class="modal-header">
+          <h3>Save Custom Instruction</h3>
+          <button class="modal-close" id="closeSaveModalBtn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="instructionName">Instruction Name</label>
+            <input type="text" id="instructionName" class="form-input" placeholder="e.g., Met at conference">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="cancelSaveBtn">Cancel</button>
+          <button class="btn-primary" id="confirmSaveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

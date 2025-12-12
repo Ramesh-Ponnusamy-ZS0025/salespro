@@ -143,3 +143,35 @@ Requirements:
 
     preview_text = await generate_llm_response(prompt)
     return {"preview": preview_text}
+
+@router.get("/value-propositions")
+async def get_value_propositions(current_user: User = Depends(get_current_user)):
+    """Get value propositions from agents collection (for Chrome extension)"""
+    try:
+        # Get user
+        user = await db.users.find_one({"email": current_user.email})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Query ALL agents (not just user-specific)
+        agents = await db.agents.find(
+            {"value_props": {"$exists": True, "$ne": []}}
+        ).sort("usage_count", -1).to_list(100)
+
+        # Extract value propositions
+        value_props = []
+        for agent in agents:
+            if agent.get('value_props') and len(agent.get('value_props', [])) > 0:
+                value_props.append({
+                    "id": agent.get('id', str(agent.get('_id', ''))),
+                    "name": agent.get('agent_name', 'Unnamed Agent'),
+                    "service": agent.get('service', ''),
+                    "value_props": agent.get('value_props', []),
+                    "pain_points": agent.get('pain_points', [])
+                })
+
+        logger.info(f"Loaded {len(value_props)} value propositions from agents collection")
+        return {"value_propositions": value_props}
+    except Exception as e:
+        logger.error(f"Error fetching value propositions: {str(e)}")
+        return {"value_propositions": []}
