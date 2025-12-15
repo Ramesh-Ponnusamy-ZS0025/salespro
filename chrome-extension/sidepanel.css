@@ -479,12 +479,129 @@ body {
   transition: all var(--transition-fast);
 }
 
+.form-select {
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+}
+
+.form-select:hover {
+  border-color: var(--primary-light);
+  background-color: var(--gray-50);
+}
+
 .form-select:focus,
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Value Proposition Container with New Button */
+.value-prop-container {
+  display: flex !important;
+  gap: 8px;
+  align-items: stretch;
+  width: 100%;
+}
+
+/* Modern Select Styling */
+.form-select-modern {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 36px 0 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-800);
+  background-color: white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form-select-modern:hover {
+  border-color: var(--gray-400);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.form-select-modern:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+.form-select-modern option {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.form-select-modern option:first-child {
+  color: var(--gray-500);
+  font-style: italic;
+}
+
+/* New Agent Button */
+.btn-new-agent {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background-color: white;
+  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: fit-content;
+}
+
+.btn-new-agent:hover {
+  background-color: var(--gray-50);
+  border-color: var(--gray-400);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.btn-new-agent:active {
+  background-color: var(--gray-100);
+  transform: translateY(1px);
+}
+
+.btn-new-agent svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .form-textarea {
@@ -1407,4 +1524,118 @@ button:disabled {
 
 .main-content.hidden {
   display: none;
+}
+
+/* ========================================
+   COMPACT RADIO BUTTONS
+======================================== */
+.form-group-compact {
+  margin-bottom: var(--spacing-md);
+}
+
+.label-compact {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: var(--spacing-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.radio-group {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.radio-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 6px 12px;
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background-color: white;
+  transition: all var(--transition-fast);
+  user-select: none;
+  font-size: 13px;
+}
+
+.radio-option:hover {
+  border-color: var(--primary-color);
+  background-color: var(--gray-50);
+}
+
+.radio-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.radio-option input[type="radio"]:checked ~ .radio-label {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.radio-option input[type="radio"]:checked {
+  & ~ .radio-label::before {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+  }
+}
+
+.radio-option:has(input[type="radio"]:checked) {
+  border-color: var(--primary-color);
+  background-color: #f0f4ff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.radio-label {
+  position: relative;
+  padding-left: 20px;
+  color: var(--gray-700);
+  font-size: 13px;
+  transition: all var(--transition-fast);
+}
+
+.radio-label::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--gray-300);
+  border-radius: 50%;
+  background-color: white;
+  transition: all var(--transition-fast);
+}
+
+.radio-label::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: white;
+  transition: transform var(--transition-fast);
+}
+
+.radio-option input[type="radio"]:checked ~ .radio-label::after {
+  transform: translateY(-50%) scale(1);
+}
+
+/* Focus state for accessibility */
+.radio-option input[type="radio"]:focus-visible ~ .radio-label::before {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }

@@ -112,57 +112,6 @@
             <span id="profileCompany"></span>
             <span id="profileLocation"></span>
           </div>
-
-          <!-- Additional Profile Details -->
-          <div class="profile-details" id="profileDetails" style="margin-top: 12px;">
-            <!-- About section -->
-            <div id="profileAbout" style="display: none; margin-bottom: 8px;">
-              <strong style="font-size: 12px; color: #666;">📝 About:</strong>
-              <p id="profileAboutText" style="font-size: 12px; color: #444; margin: 4px 0; line-height: 1.4;"></p>
-            </div>
-
-            <!-- Latest Posts section -->
-            <div id="profilePosts" style="display: none; margin-bottom: 8px;">
-              <strong style="font-size: 12px; color: #666;">📰 Latest Posts:</strong>
-              <div id="profilePostsList" style="margin-top: 4px;"></div>
-            </div>
-
-            <!-- Experience section -->
-            <div id="profileExperience" style="display: none; margin-bottom: 8px;">
-              <strong style="font-size: 12px; color: #666;">💼 Experience:</strong>
-              <p id="profileExperienceText" style="font-size: 12px; color: #444; margin: 4px 0;"></p>
-            </div>
-
-            <!-- Skills section -->
-            <div id="profileSkills" style="display: none; margin-bottom: 8px;">
-              <strong style="font-size: 12px; color: #666;">🎯 Skills:</strong>
-              <p id="profileSkillsText" style="font-size: 12px; color: #444; margin: 4px 0;"></p>
-            </div>
-
-            <!-- Certifications section -->
-            <div id="profileCertifications" style="display: none; margin-bottom: 8px;">
-              <strong style="font-size: 12px; color: #666;">🏅 Certifications:</strong>
-              <div id="profileCertificationsList" style="margin-top: 4px;"></div>
-            </div>
-
-            <!-- Languages section -->
-            <div id="profileLanguages" style="display: none; margin-bottom: 8px;">
-              <strong style="font-size: 12px; color: #666;">🌐 Languages:</strong>
-              <p id="profileLanguagesText" style="font-size: 12px; color: #444; margin: 4px 0;"></p>
-            </div>
-
-            <!-- Education section -->
-            <div id="profileEducation" style="display: none; margin-bottom: 8px;">
-              <strong style="font-size: 12px; color: #666;">🎓 Education:</strong>
-              <div id="profileEducationList" style="margin-top: 4px;"></div>
-            </div>
-
-            <!-- Recommendations section -->
-            <div id="profileRecommendations" style="display: none;">
-              <strong style="font-size: 12px; color: #666;">⭐ Recommendations:</strong>
-              <div id="profileRecommendationsList" style="margin-top: 4px;"></div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -197,10 +146,20 @@
           <label for="valuePropositionSelect">
             <span class="label-icon">💎</span>
             Select Your Value Proposition
+            <span class="label-hint">(Choose what you're selling)</span>
           </label>
-          <select id="valuePropositionSelect" class="form-select">
-            <option value="">Personal Default Value Prop</option>
-          </select>
+          <div class="value-prop-container">
+            <select id="valuePropositionSelect" class="form-select-modern">
+              <option value="">Select a value proposition...</option>
+            </select>
+            <button type="button" class="btn-new-agent" id="newAgentBtn" title="Create new agent">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"></path>
+                <path d="M12 5v14"></path>
+              </svg>
+              New
+            </button>
+          </div>
         </div>
 
         <!-- Sales Assets (Case Studies) -->
@@ -222,14 +181,14 @@
             <span class="label-hint">(choose which profile aspect to emphasize)</span>
           </label>
           <select id="contentFocus" class="form-select">
-            <option value="all">All Profile Data (Default)</option>
-            <option value="recent_posts">📰 Recent Posts</option>
+            <option value="recent_posts" selected>📰 Recent Posts (Default)</option>
             <option value="skills">🎯 Skills & Expertise</option>
             <option value="recommendations">⭐ Recommendations</option>
             <option value="geography">📍 Geography & Location</option>
             <option value="about">📝 Profile Description (About)</option>
             <option value="education">🎓 Education Background</option>
             <option value="experience">💼 Work Experience</option>
+            <option value="all">All Profile Data</option>
           </select>
         </div>
 
@@ -284,15 +243,24 @@
         </div>
 
         <!-- Content Type -->
-        <div class="form-group">
-          <label>
+        <div class="form-group form-group-compact">
+          <label class="label-compact">
             <span class="label-icon">📝</span>
             Content type
           </label>
-          <div class="button-group">
-            <button class="option-btn active" data-type="email">Email</button>
-            <button class="option-btn" data-type="linkedin_dm">LinkedIn DM</button>
-            <button class="option-btn" data-type="opener">Opener</button>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="contentType" value="email" checked>
+              <span class="radio-label">Email</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="contentType" value="linkedin_dm">
+              <span class="radio-label">LinkedIn DM</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="contentType" value="opener">
+              <span class="radio-label">Opener</span>
+            </label>
           </div>
         </div>
       </div>

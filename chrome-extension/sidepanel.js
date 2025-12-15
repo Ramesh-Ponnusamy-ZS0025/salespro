@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:8000/api';
+const API_URL = 'http://localhost:8001/api';
 
 // Global state
 let currentStep = 1;
@@ -115,7 +115,7 @@ async function handleLogin(e) {
     loginBtn.disabled = true;
 
     try {
-        const response = await fetch(`${API_URL}/login`, {
+        const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -167,12 +167,13 @@ function setupEventListeners() {
     if (closeBtn) closeBtn.addEventListener('click', closeSidepanel);
     if (settingsBtn) settingsBtn.addEventListener('click', openSettings);
 
-    // Content type selection
-    document.querySelectorAll('.option-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            selectedContentType = this.dataset.type;
+    // Content type selection (radio buttons)
+    document.querySelectorAll('input[name="contentType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                selectedContentType = this.value;
+                console.log('Content type changed to:', selectedContentType);
+            }
         });
     });
 
@@ -207,6 +208,10 @@ function setupEventListeners() {
     const additionalInput = document.getElementById('additionalInput');
     if (valuePropSelect) valuePropSelect.addEventListener('change', updateSelectionCounter);
     if (additionalInput) additionalInput.addEventListener('input', updateSelectionCounter);
+
+    // New Agent button
+    const newAgentBtn = document.getElementById('newAgentBtn');
+    if (newAgentBtn) newAgentBtn.addEventListener('click', openAgentBuilder);
 
     // Content generation
     const generateContentBtn = document.getElementById('generateContentBtn');
@@ -257,226 +262,6 @@ function displayProfileInfo(profile) {
     if (elements.avatar && profile.name) {
         const initials = profile.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         elements.avatar.textContent = initials;
-    }
-
-    // Display About section
-    const aboutSection = document.getElementById('profileAbout');
-    const aboutText = document.getElementById('profileAboutText');
-    if (profile.about && aboutText) {
-        aboutText.textContent = profile.about.substring(0, 200) + (profile.about.length > 200 ? '...' : '');
-        aboutSection.style.display = 'block';
-    }
-
-    // Display Latest Posts
-    const postsSection = document.getElementById('profilePosts');
-    const postsList = document.getElementById('profilePostsList');
-    if (profile.posts && profile.posts.length > 0 && postsList) {
-        postsList.innerHTML = '';
-        // Show up to 3 most recent posts
-        profile.posts.slice(0, 3).forEach((post, index) => {
-            const postDiv = document.createElement('div');
-            postDiv.style.cssText = 'font-size: 11px; color: #555; margin: 4px 0; padding: 6px; background: #f8f9fa; border-radius: 4px; border-left: 2px solid #0066cc;';
-
-            // Handle post content based on structure
-            let postContent = '';
-            if (typeof post === 'string') {
-                postContent = post;
-            } else if (post.content) {
-                postContent = post.content;
-            } else if (post.text) {
-                postContent = post.text;
-            }
-
-            // Truncate and display
-            const truncated = postContent.substring(0, 150) + (postContent.length > 150 ? '...' : '');
-            postDiv.textContent = `${index + 1}. ${truncated}`;
-            postsList.appendChild(postDiv);
-        });
-        postsSection.style.display = 'block';
-    }
-
-    // Display Experience
-    const expSection = document.getElementById('profileExperience');
-    const expText = document.getElementById('profileExperienceText');
-    if (profile.experience && profile.experience.length > 0 && expText) {
-        const expCount = profile.experience.length;
-        const currentExp = profile.experience[0];
-        let expSummary = `${expCount} role${expCount > 1 ? 's' : ''}`;
-
-        if (currentExp.title) {
-            expSummary += ` • Current: ${currentExp.title}`;
-            if (currentExp.company) {
-                expSummary += ` at ${currentExp.company}`;
-            }
-        }
-
-        expText.textContent = expSummary;
-        expSection.style.display = 'block';
-    }
-
-    // Display Skills
-    const skillsSection = document.getElementById('profileSkills');
-    const skillsText = document.getElementById('profileSkillsText');
-    if (profile.skills && profile.skills.length > 0 && skillsText) {
-        const topSkills = profile.skills.slice(0, 8).join(', ');
-        skillsText.textContent = topSkills + (profile.skills.length > 8 ? ` +${profile.skills.length - 8} more` : '');
-        skillsSection.style.display = 'block';
-    }
-
-    // Display Certifications
-    const certsSection = document.getElementById('profileCertifications');
-    const certsList = document.getElementById('profileCertificationsList');
-    if (profile.certifications && profile.certifications.length > 0 && certsList) {
-        certsList.innerHTML = '';
-        // Show up to 5 certifications
-        profile.certifications.slice(0, 5).forEach((cert, index) => {
-            const certDiv = document.createElement('div');
-            certDiv.style.cssText = 'font-size: 11px; color: #555; margin: 4px 0; padding: 4px; background: #f8f9fa; border-radius: 4px;';
-
-            let certText = '';
-            if (typeof cert === 'string') {
-                certText = cert;
-            } else if (cert.name) {
-                certText = cert.name;
-                if (cert.issuer) {
-                    certText += ` - ${cert.issuer}`;
-                }
-                if (cert.date) {
-                    certText += ` (${cert.date})`;
-                }
-            }
-
-            certDiv.textContent = certText;
-            certsList.appendChild(certDiv);
-        });
-
-        if (profile.certifications.length > 5) {
-            const moreDiv = document.createElement('div');
-            moreDiv.style.cssText = 'font-size: 11px; color: #888; margin-top: 4px; font-style: italic;';
-            moreDiv.textContent = `+${profile.certifications.length - 5} more certifications`;
-            certsList.appendChild(moreDiv);
-        }
-
-        certsSection.style.display = 'block';
-    }
-
-    // Display Languages
-    const languagesSection = document.getElementById('profileLanguages');
-    const languagesText = document.getElementById('profileLanguagesText');
-    if (profile.languages && profile.languages.length > 0 && languagesText) {
-        let languagesDisplay = '';
-
-        if (typeof profile.languages[0] === 'string') {
-            // Simple array of language names
-            languagesDisplay = profile.languages.join(', ');
-        } else {
-            // Array of objects with language and proficiency
-            languagesDisplay = profile.languages.map(lang => {
-                if (lang.name && lang.proficiency) {
-                    return `${lang.name} (${lang.proficiency})`;
-                } else if (lang.name) {
-                    return lang.name;
-                } else if (typeof lang === 'string') {
-                    return lang;
-                }
-                return '';
-            }).filter(l => l).join(', ');
-        }
-
-        languagesText.textContent = languagesDisplay;
-        languagesSection.style.display = 'block';
-    }
-
-    // Display Education
-    const eduSection = document.getElementById('profileEducation');
-    const eduList = document.getElementById('profileEducationList');
-    if (profile.education && profile.education.length > 0 && eduList) {
-        eduList.innerHTML = '';
-        // Show up to 3 education entries
-        profile.education.slice(0, 3).forEach((edu, index) => {
-            const eduDiv = document.createElement('div');
-            eduDiv.style.cssText = 'font-size: 11px; color: #555; margin: 4px 0; padding: 6px; background: #f8f9fa; border-radius: 4px; border-left: 2px solid #28a745;';
-
-            let eduText = '';
-            if (typeof edu === 'string') {
-                eduText = edu;
-            } else {
-                if (edu.degree) {
-                    eduText = edu.degree;
-                }
-                if (edu.field) {
-                    eduText += (eduText ? ' in ' : '') + edu.field;
-                }
-                if (edu.school) {
-                    eduText += (eduText ? ' - ' : '') + edu.school;
-                }
-                if (edu.year || edu.years) {
-                    eduText += ` (${edu.year || edu.years})`;
-                }
-            }
-
-            eduDiv.textContent = eduText || 'Education entry';
-            eduList.appendChild(eduDiv);
-        });
-
-        if (profile.education.length > 3) {
-            const moreDiv = document.createElement('div');
-            moreDiv.style.cssText = 'font-size: 11px; color: #888; margin-top: 4px; font-style: italic;';
-            moreDiv.textContent = `+${profile.education.length - 3} more education entries`;
-            eduList.appendChild(moreDiv);
-        }
-
-        eduSection.style.display = 'block';
-    }
-
-    // Display Recommendations
-    const recsSection = document.getElementById('profileRecommendations');
-    const recsList = document.getElementById('profileRecommendationsList');
-    if (profile.recommendations && profile.recommendations.length > 0 && recsList) {
-        recsList.innerHTML = '';
-        // Show up to 3 recommendations
-        profile.recommendations.slice(0, 3).forEach((rec, index) => {
-            const recDiv = document.createElement('div');
-            recDiv.style.cssText = 'font-size: 11px; color: #555; margin: 4px 0; padding: 6px; background: #fffbf0; border-radius: 4px; border-left: 2px solid #fbbf24;';
-
-            let recText = '';
-            if (typeof rec === 'string') {
-                recText = rec;
-            } else {
-                // Build recommendation text from object
-                if (rec.recommender) {
-                    recText = `"${rec.text || rec.content || ''}" - ${rec.recommender}`;
-                } else if (rec.name) {
-                    recText = `"${rec.text || rec.content || ''}" - ${rec.name}`;
-                } else {
-                    recText = rec.text || rec.content || JSON.stringify(rec);
-                }
-
-                // Add recommender's title/company if available
-                if (rec.recommender_title) {
-                    recText += ` (${rec.recommender_title})`;
-                } else if (rec.title) {
-                    recText += ` (${rec.title})`;
-                }
-            }
-
-            // Truncate if too long
-            if (recText.length > 200) {
-                recText = recText.substring(0, 200) + '...';
-            }
-
-            recDiv.textContent = recText || 'Recommendation';
-            recsList.appendChild(recDiv);
-        });
-
-        if (profile.recommendations.length > 3) {
-            const moreDiv = document.createElement('div');
-            moreDiv.style.cssText = 'font-size: 11px; color: #888; margin-top: 4px; font-style: italic;';
-            moreDiv.textContent = `+${profile.recommendations.length - 3} more recommendations`;
-            recsList.appendChild(moreDiv);
-        }
-
-        recsSection.style.display = 'block';
     }
 }
 
@@ -612,6 +397,50 @@ function generateInsights(profile) {
         });
     }
 
+    // ========== COMPANY EXPERIENCE ==========
+    // Work Experience - Compact view with all details
+    console.log('Profile experience data:', profile.experience);
+    console.log('Experience length:', profile.experience?.length);
+
+    if (profile.experience && profile.experience.length > 0) {
+        console.log('Adding Company Experience insights for', profile.experience.length, 'experiences');
+
+        // Add individual experience entries - one insight per experience
+        profile.experience.forEach((exp, index) => {
+            if (index < 12) { // Limit to 12 experiences as per requirement
+                const companyName = exp.company || 'Unknown Company';
+                const jobTitle = exp.title || 'Position';
+                const duration = exp.duration || 'Duration not specified';
+                const location = exp.location || '';
+                const description = exp.description || '';
+                const skills = exp.skills || '';
+
+                // Build compact content string with key info
+                let content = `${jobTitle} • ${duration}`;
+                if (location) content += ` • ${location}`;
+
+                // Build full content with ALL details for backend processing
+                let fullContent = `Position: ${jobTitle}\nCompany: ${companyName}\nDuration: ${duration}`;
+                if (location) fullContent += `\nLocation: ${location}`;
+                if (description) fullContent += `\nDescription: ${description}`;
+                if (skills) fullContent += `\nSkills: ${skills}`;
+
+                allInsights.push({
+                    id: `insight-${id++}`,
+                    category: 'Company Experience',
+                    icon: exp.is_current ? '🏢' : '📋',
+                    title: `${companyName}${exp.is_current ? ' (Current)' : ''}`,
+                    content: content,
+                    fullContent: fullContent,
+                    selected: true
+                });
+                console.log(`Added experience insight #${index + 1}:`, companyName);
+            }
+        });
+    } else {
+        console.log('No experience data found in profile');
+    }
+
     // ========== BEHAVIORAL & PERSONALITY INSIGHTS ==========
     if (profile.personality_type) {
         allInsights.push({
@@ -649,18 +478,6 @@ function generateInsights(profile) {
         });
     }
 
-    // ========== COMMUNICATION STYLE ==========
-    const commStyle = analyzeCommStyle(profile);
-    if (commStyle) {
-        allInsights.push({
-            id: `insight-${id++}`,
-            category: 'Communication Style',
-            icon: '💬',
-            title: 'Communication Style',
-            content: commStyle,
-            selected: true
-        });
-    }
 
     // ========== PSYCHOLOGICAL TRIGGERS ==========
     const triggers = generatePsychTriggers(profile);
@@ -717,6 +534,51 @@ function generateInsights(profile) {
                 });
             }
         });
+    }
+
+    // ========== RECOMMENDATIONS ==========
+    if (profile.recommendations && profile.recommendations.length > 0) {
+        console.log(`Processing ${profile.recommendations.length} recommendations for insights`);
+
+        profile.recommendations.forEach((rec) => {
+            let recText = '';
+            let recTitle = 'Recommendation';
+
+            if (typeof rec === 'string') {
+                recText = rec;
+            } else {
+                // Build recommendation text from object
+                recText = rec.text || rec.content || '';
+
+                // Create title with recommender info
+                if (rec.recommender) {
+                    recTitle = `Recommendation from ${rec.recommender}`;
+                    if (rec.recommender_title) {
+                        recTitle += ` (${rec.recommender_title})`;
+                    }
+                } else if (rec.name) {
+                    recTitle = `Recommendation from ${rec.name}`;
+                }
+            }
+
+            if (recText) {
+                const insight = {
+                    id: `insight-${id++}`,
+                    category: 'Recommendations',
+                    icon: '⭐',
+                    title: recTitle,
+                    content: recText.substring(0, 200) + (recText.length > 200 ? '...' : ''),
+                    fullContent: recText,
+                    selected: true
+                };
+                allInsights.push(insight);
+                console.log('Added recommendation insight:', insight.title);
+            }
+        });
+
+        console.log(`Total recommendation insights added: ${allInsights.filter(i => i.category === 'Recommendations').length}`);
+    } else {
+        console.log('No recommendations found in profile data');
     }
 
     // ========== SHARED EXPERIENCE ==========
@@ -796,22 +658,6 @@ function generateSellingTips(personalityType) {
         'C': 'Provide detailed data and documentation. Be precise and logical. Focus on accuracy and quality.'
     };
     return tips[personalityType] || `Selling to ${personalityType} personality: Tailor your approach based on their communication preferences.`;
-}
-
-// Helper function to analyze communication style
-function analyzeCommStyle(profile) {
-    const styles = [];
-
-    // Analyze from posts if available
-    if (profile.posts && profile.posts.length > 0) {
-        styles.push('Informal and casual tone');
-        styles.push('Emotionally expressive');
-        styles.push('Friendly, warm tone');
-    } else {
-        styles.push('Professional communication style');
-    }
-
-    return styles.length > 0 ? styles.join(' • ') : null;
 }
 
 // Helper function to generate psychological triggers
@@ -960,14 +806,124 @@ function updateSelectionCounter() {
     }
 }
 
+// Update Focus Content dropdown based on available insights
+function updateContentFocusOptions() {
+    const contentFocusSelect = document.getElementById('contentFocus');
+    if (!contentFocusSelect) return;
+
+    // Check what types of insights are available
+    const availableOptions = new Set();
+
+    // Always include "All Profile Data"
+    availableOptions.add('all');
+
+    // Check each selected insight and map to focus options
+    selectedInsights.forEach(insight => {
+        const category = insight.category.toLowerCase();
+        const title = insight.title.toLowerCase();
+
+        // Map insights to focus options
+        if (category === 'linkedin activity' || title.includes('post')) {
+            availableOptions.add('recent_posts');
+        }
+        if (category === 'recommendations' || title.includes('recommendation')) {
+            availableOptions.add('recommendations');
+        }
+        if (title.includes('skill') || title.includes('expertise')) {
+            availableOptions.add('skills');
+        }
+        if (title.includes('education') || title.includes('studied') || title.includes('degree')) {
+            availableOptions.add('education');
+        }
+        if (title.includes('about') || title.includes('about me')) {
+            availableOptions.add('about');
+        }
+        if (title.includes('location') || title.includes('geographic') || category === 'shared experience') {
+            availableOptions.add('geography');
+        }
+        if (category === 'company information' || category === 'company experience' || title.includes('experience') || title.includes('job')) {
+            availableOptions.add('experience');
+        }
+    });
+
+    // Define all possible options with their labels
+    const allOptions = [
+        { value: 'recent_posts', label: '📰 Recent Posts', default: true },
+        { value: 'skills', label: '🎯 Skills & Expertise' },
+        { value: 'recommendations', label: '⭐ Recommendations' },
+        { value: 'geography', label: '📍 Geography & Location' },
+        { value: 'about', label: '📝 Profile Description (About)' },
+        { value: 'education', label: '🎓 Education Background' },
+        { value: 'experience', label: '💼 Work Experience' },
+        { value: 'all', label: 'All Profile Data' }
+    ];
+
+    // Get current selection to preserve it if possible
+    const currentValue = contentFocusSelect.value;
+
+    // Clear and repopulate dropdown
+    contentFocusSelect.innerHTML = '';
+
+    // Add only available options
+    let hasDefault = false;
+    allOptions.forEach(option => {
+        if (availableOptions.has(option.value)) {
+            const optionEl = document.createElement('option');
+            optionEl.value = option.value;
+            optionEl.textContent = option.label + (option.default && !hasDefault ? ' (Default)' : '');
+
+            // Set as selected if it matches current value, or if it's the first default
+            if (option.value === currentValue || (option.default && !hasDefault && !currentValue)) {
+                optionEl.selected = true;
+                hasDefault = true;
+            }
+
+            contentFocusSelect.appendChild(optionEl);
+        }
+    });
+
+    // If current selection is no longer available, select the first available option
+    if (!availableOptions.has(currentValue)) {
+        contentFocusSelect.selectedIndex = 0;
+    }
+
+    console.log('Updated Focus Content dropdown with available options:', Array.from(availableOptions));
+}
+
 // Navigation Functions
-function goToStep2() {
+async function goToStep2() {
     currentStep = 2;
     document.getElementById('step1')?.classList.remove('active');
     document.getElementById('step2')?.classList.add('active');
     document.querySelector('.progress-step[data-step="1"]')?.classList.remove('active');
     document.querySelector('.progress-step[data-step="2"]')?.classList.add('active');
+
+    // Ensure dropdowns are populated before showing Step 2
+    await ensureDropdownsLoaded();
+
+    // Update the content focus dropdown based on available insights
+    updateContentFocusOptions();
+
     window.scrollTo(0, 0);
+}
+
+// Ensure all dropdowns have data loaded
+async function ensureDropdownsLoaded() {
+    try {
+        // Check if value propositions are loaded
+        const valuePropSelect = document.getElementById('valuePropositionSelect');
+        if (valuePropSelect && valuePropSelect.options.length <= 1) {
+            await loadValuePropositions();
+        }
+
+        // Check if saved instructions are loaded
+        const savedInstructionsSelect = document.getElementById('savedInstructionsSelect');
+        if (savedInstructionsSelect && savedInstructionsSelect.options.length <= 1) {
+            await loadSavedInstructions();
+        }
+    } catch (error) {
+        console.error('Error ensuring dropdowns loaded:', error);
+    }
 }
 
 function goToStep1() {
@@ -1002,6 +958,9 @@ function goToStep2FromStep3() {
     document.querySelector('.progress-step[data-step="3"]')?.classList.remove('active');
     document.querySelector('.progress-step[data-step="2"]')?.classList.add('active');
 
+    // Update the content focus dropdown based on available insights
+    updateContentFocusOptions();
+
     window.scrollTo(0, 0);
 }
 
@@ -1016,6 +975,11 @@ async function openSettings() {
     if (confirmLogout) {
         await handleLogout();
     }
+}
+
+function openAgentBuilder() {
+    // Open Agent Builder page in new tab
+    chrome.tabs.create({ url: 'http://localhost:3000/agents' });
 }
 
 async function handleLogout() {
@@ -1339,7 +1303,7 @@ async function loadSavedInstructions() {
             }
         });
 
-        console.log('Response status:', response.status);
+        console.log('Saved instructions response status:', response.status);
 
         if (response.ok) {
             const data = await response.json();
@@ -1354,7 +1318,7 @@ async function loadSavedInstructions() {
             select.innerHTML = '<option value="">Load saved instruction...</option>';
 
             if (data.instructions && data.instructions.length > 0) {
-                console.log(`Adding ${data.instructions.length} instructions to dropdown`);
+                console.log(`Successfully added ${data.instructions.length} instructions to dropdown`);
                 data.instructions.forEach(inst => {
                     const option = document.createElement('option');
                     option.value = inst.content;
@@ -1362,13 +1326,15 @@ async function loadSavedInstructions() {
                     select.appendChild(option);
                 });
             } else {
-                console.log('No instructions found');
+                console.log('No instructions found (empty array)');
             }
         } else {
-            console.error('Failed to load instructions:', response.status, response.statusText);
+            console.error('Failed to load saved instructions:', response.status, response.statusText);
+            const errorData = await response.text();
+            console.error('Error details:', errorData);
         }
     } catch (error) {
-        console.error('Error loading instructions:', error);
+        console.error('Error loading saved instructions:', error);
     }
 }
 
@@ -1384,86 +1350,221 @@ function loadSavedInstruction(event) {
 async function loadValuePropositions() {
     try {
         const storage = await chrome.storage.local.get(['authToken']);
-        if (!storage.authToken) return;
+        if (!storage.authToken) {
+            console.log('No auth token, skipping load value propositions');
+            return;
+        }
 
+        console.log('Loading value propositions...');
         const response = await fetch(`${API_URL}/value-propositions`, {
             headers: {
                 'Authorization': `Bearer ${storage.authToken}`
             }
         });
 
+        console.log('Value propositions response status:', response.status);
+
         if (response.ok) {
             const data = await response.json();
+            console.log('Loaded value propositions:', data);
+
             const select = document.getElementById('valuePropositionSelect');
-            if (!select) return;
+            if (!select) {
+                console.error('valuePropositionSelect element not found!');
+                return;
+            }
 
             // Clear existing options except the first one (default)
             while (select.options.length > 1) {
                 select.remove(1);
             }
 
+            let addedCount = 0;
+            const addedAgents = new Set(); // Track added agent names to avoid duplicates
+
             (data.value_propositions || []).forEach(vp => {
-                // value_props is an array, so we create one option for each value prop
-                (vp.value_props || []).forEach((valueProp, index) => {
+                // Only add each agent once (not per value_prop)
+                if (!addedAgents.has(vp.name)) {
+                    addedAgents.add(vp.name);
+
                     const option = document.createElement('option');
-                    option.value = valueProp;
-                    // Display: Agent Name - Value Prop (if multiple value props)
-                    const displayName = vp.value_props.length > 1
-                        ? `${vp.name} - ${valueProp.substring(0, 50)}...`
-                        : `${vp.name}`;
+                    // Store all value props as JSON in the value for later use
+                    option.value = JSON.stringify(vp.value_props);
+                    option.dataset.agentName = vp.name;
+
+                    // Display just the agent name
+                    let displayName = vp.name;
+
+                    // Add star indicator for leader-configured agents
+                    if (vp.is_leader_configured || vp.configured_by_leader || vp.leader) {
+                        displayName += ' ⭐';
+                    }
+
                     option.textContent = displayName;
+                    option.title = `${vp.name} - ${vp.value_props.length} value proposition(s)`;
                     select.appendChild(option);
-                });
+                    addedCount++;
+                }
             });
+            console.log(`Successfully added ${addedCount} agents to dropdown`);
+        } else {
+            console.error('Failed to load value propositions:', response.status, response.statusText);
+            const errorData = await response.text();
+            console.error('Error details:', errorData);
         }
     } catch (error) {
         console.error('Error loading value propositions:', error);
     }
 }
 
+// Filter insights based on content focus selection
+function filterInsightsByFocus(insights, focusType) {
+    // If "all", return all insights
+    if (focusType === 'all') {
+        return insights;
+    }
+
+    // Filter insights by matching title, content, or category
+    const filtered = insights.filter(insight => {
+        const title = insight.title.toLowerCase();
+        const category = insight.category.toLowerCase();
+        const content = (insight.content || '').toLowerCase();
+
+        switch(focusType) {
+            case 'recent_posts':
+                // Match LinkedIn Activity category OR title contains "post"
+                return category === 'linkedin activity' ||
+                       title.includes('post') ||
+                       title.includes('linkedin post');
+
+            case 'skills':
+                // Match only insights about skills
+                return title.includes('skill') ||
+                       title.includes('expertise') ||
+                       (category === 'professional background' && title.includes('skills listed'));
+
+            case 'recommendations':
+                // Match Recommendations category
+                return category === 'recommendations' ||
+                       title.includes('recommendation from');
+
+            case 'geography':
+                // Match location/geography insights
+                return title.includes('location') ||
+                       title.includes('geographic') ||
+                       title.includes('based in') ||
+                       category === 'shared experience';
+
+            case 'about':
+                // Match About/Bio insights
+                return title.includes('about') ||
+                       title.includes('about me') ||
+                       title.includes('bio') ||
+                       (category === 'linkedin data' && title.includes('about'));
+
+            case 'education':
+                // Match education insights
+                return title.includes('education') ||
+                       title.includes('studied at') ||
+                       title.includes('degree') ||
+                       title.includes('university');
+
+            case 'experience':
+                // Match work experience insights
+                return title.includes('experience') ||
+                       title.includes('job description') ||
+                       title.includes('working at') ||
+                       title.includes('company') ||
+                       title.includes('role') ||
+                       category === 'company information' ||
+                       category === 'company experience';
+
+            default:
+                return false;
+        }
+    });
+
+    console.log(`Filtered insights for focus "${focusType}":`, {
+        original: insights.length,
+        filtered: filtered.length,
+        matchedInsights: filtered.map(i => i.title)
+    });
+
+    return filtered;
+}
+
 // Content Generation
 async function generateContent() {
-    const storage = await chrome.storage.local.get(['authToken']);
-    const authToken = storage.authToken;
-
-    if (!authToken) {
-        alert('Please login first from the extension popup');
-        return;
-    }
-
-    if (!currentProfile) {
-        alert('No profile data available');
-        return;
-    }
-
-    showLoading(true);
-
     try {
-        // Prepare selected insights with full details
-        const insightsForBackend = selectedInsights.map(insight => ({
+        // Get auth token with error handling for extension reload
+        const storage = await chrome.storage.local.get(['authToken']);
+        const authToken = storage.authToken;
+
+        if (!authToken) {
+            alert('Please login first from the extension popup');
+            return;
+        }
+
+        if (!currentProfile) {
+            alert('No profile data available');
+            return;
+        }
+
+        showLoading(true);
+        // Get the selected content focus
+        const contentFocus = document.getElementById('contentFocus')?.value || 'recent_posts';
+
+        // Filter insights based on content focus
+        const filteredInsights = filterInsightsByFocus(selectedInsights, contentFocus);
+
+        // If no insights match the focus, warn the user
+        if (filteredInsights.length === 0) {
+            alert(`No insights available for "${contentFocus}". Please select different content focus or go back to Step 1 to ensure relevant insights are selected.`);
+            showLoading(false);
+            return;
+        }
+
+        // Prepare filtered insights with full details
+        const insightsForBackend = filteredInsights.map(insight => ({
             category: insight.category,
             title: insight.title,
             content: insight.fullContent || insight.content,
             icon: insight.icon
         }));
 
-        // Prepare case studies with full data
+        // Prepare case studies with full data including URLs
         const caseStudiesForBackend = selectedCaseStudies.map(cs => ({
             title: cs.title,
             excerpt: cs.excerpt,
             categories: cs.categories,
             industry: cs.industry,
             keywords: cs.keywords || [],
-            relevance_score: cs.relevance_score || 0
+            relevance_score: cs.relevance_score || 0,
+            pdf_url: cs.pdf_url || cs.url || ''
         }));
+
+        // Get value proposition - handle JSON array format
+        let valueProposition = '';
+        const valuePropSelect = document.getElementById('valuePropositionSelect');
+        if (valuePropSelect && valuePropSelect.value) {
+            try {
+                // Try to parse as JSON (new format with multiple value props)
+                const valueProps = JSON.parse(valuePropSelect.value);
+                // Use the first value prop
+                valueProposition = Array.isArray(valueProps) && valueProps.length > 0 ? valueProps[0] : '';
+            } catch (e) {
+                // If not JSON, use as-is (backward compatibility)
+                valueProposition = valuePropSelect.value;
+            }
+        }
 
         const requestData = {
             linkedin_data: currentProfile,
             selected_insights: insightsForBackend,
             content_type: selectedContentType,
-            content_focus: document.getElementById('contentFocus')?.value || 'all',
+            content_focus: contentFocus,  // Use the already retrieved value
             writing_style: document.getElementById('writingStyle')?.value || 'data-driven',
-            value_proposition: document.getElementById('valuePropositionSelect')?.value || '',
+            value_proposition: valueProposition,
             additional_context: document.getElementById('additionalInput')?.value || '',
             message_length: document.getElementById('messageLength')?.value || '100-200',
             case_studies: caseStudiesForBackend
@@ -1513,7 +1614,14 @@ async function generateContent() {
         }
     } catch (error) {
         console.error('Error generating content:', error);
-        alert('Network error. Make sure the backend is running on port 8001.');
+
+        // Handle extension context invalidated error
+        if (error.message && error.message.includes('Extension context invalidated')) {
+            alert('Extension was reloaded. Please refresh this page to continue.');
+            window.location.reload();
+        } else {
+            alert('Network error. Make sure the backend is running on port 8001.');
+        }
     } finally {
         showLoading(false);
     }

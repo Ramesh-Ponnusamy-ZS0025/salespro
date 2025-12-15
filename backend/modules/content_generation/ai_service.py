@@ -177,10 +177,16 @@ Key principles:
         # Add case studies if provided
         if case_studies and len(case_studies) > 0:
             user_prompt += "\n\n**Relevant Case Studies to Reference:**\n"
+            user_prompt += "IMPORTANT: When mentioning these case studies, naturally include their URLs inline in the content.\n\n"
             for cs in case_studies[:2]:  # Limit to top 2 most relevant
-                user_prompt += f"- {cs.get('title', '')}: {cs.get('excerpt', '')}\n"
+                user_prompt += f"- Title: {cs.get('title', '')}\n"
+                user_prompt += f"  Summary: {cs.get('excerpt', '')}\n"
+                if cs.get('pdf_url') or cs.get('url'):
+                    url = cs.get('pdf_url') or cs.get('url')
+                    user_prompt += f"  URL: {url}\n"
                 if cs.get('relevance_score', 0) > 0:
-                    user_prompt += f"  (Relevance: {int(cs['relevance_score'] * 100)}%)\n"
+                    user_prompt += f"  Relevance: {int(cs['relevance_score'])}%\n"
+                user_prompt += "\n"
 
         if value_proposition:
             user_prompt += f"\n\n**Our Value Proposition:**\n{value_proposition}"
@@ -195,11 +201,13 @@ Generate a {content_type} that:
 1. References specific details from their profile and the selected insights
 2. Demonstrates you've done deep research
 3. Uses their communication style and psychological triggers if identified
-4. Incorporates relevant case studies naturally
+4. Incorporates relevant case studies naturally WITH THEIR URLS - When mentioning a case study, include the URL inline (e.g., "as shown in this case study: [URL]")
 5. Offers clear value aligned with their role and company
 6. Includes a specific, actionable call-to-action
 7. Feels authentic and personal (not templated)
-8. Target length: {message_length} words"""
+8. Target length: {message_length} words
+
+**CRITICAL:** When referencing case studies, always include the URL in parentheses or as a hyperlink immediately after mentioning them. Example: "similar to what we achieved with a financial institution (https://example.com/case-study)" or "Check out how we helped: https://example.com/case-study" """
         
         try:
             # Generate content using Groq
