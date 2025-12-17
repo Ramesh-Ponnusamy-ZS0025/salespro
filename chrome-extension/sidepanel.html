@@ -178,18 +178,59 @@
           <label for="contentFocus">
             <span class="label-icon">🎯</span>
             Focus Content On
-            <span class="label-hint">(choose which profile aspect to emphasize)</span>
+            <span class="label-hint">(click to select multiple options)</span>
           </label>
-          <select id="contentFocus" class="form-select">
-            <option value="recent_posts" selected>📰 Recent Posts (Default)</option>
-            <option value="skills">🎯 Skills & Expertise</option>
-            <option value="recommendations">⭐ Recommendations</option>
-            <option value="geography">📍 Geography & Location</option>
-            <option value="about">📝 Profile Description (About)</option>
-            <option value="education">🎓 Education Background</option>
-            <option value="experience">💼 Work Experience</option>
-            <option value="all">All Profile Data</option>
-          </select>
+
+          <!-- Selected Options Display -->
+          <div class="selected-focus-chips" id="selectedFocusChips"></div>
+
+          <!-- Custom Dropdown -->
+          <div class="custom-multi-select">
+            <button type="button" class="multi-select-button" id="contentFocusButton">
+              <span id="contentFocusButtonText">Select content focus...</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m6 9 6 6 6-6"></path>
+              </svg>
+            </button>
+            <div class="multi-select-dropdown hidden" id="contentFocusDropdown">
+              <div class="multi-select-option" data-value="featured">
+                <input type="checkbox" id="focus-featured" value="featured">
+                <label for="focus-featured">⭐ Featured Content</label>
+              </div>
+              <div class="multi-select-option" data-value="recent_posts">
+                <input type="checkbox" id="focus-recent_posts" value="recent_posts" checked>
+                <label for="focus-recent_posts">📰 Recent Posts</label>
+              </div>
+              <div class="multi-select-option" data-value="skills">
+                <input type="checkbox" id="focus-skills" value="skills">
+                <label for="focus-skills">🎯 Skills & Expertise</label>
+              </div>
+              <div class="multi-select-option" data-value="recommendations">
+                <input type="checkbox" id="focus-recommendations" value="recommendations">
+                <label for="focus-recommendations">💬 Recommendations</label>
+              </div>
+              <div class="multi-select-option" data-value="geography">
+                <input type="checkbox" id="focus-geography" value="geography">
+                <label for="focus-geography">📍 Geography & Location</label>
+              </div>
+              <div class="multi-select-option" data-value="about">
+                <input type="checkbox" id="focus-about" value="about" checked>
+                <label for="focus-about">📝 Profile Description (About)</label>
+              </div>
+              <div class="multi-select-option" data-value="education">
+                <input type="checkbox" id="focus-education" value="education">
+                <label for="focus-education">🎓 Education Background</label>
+              </div>
+              <div class="multi-select-option" data-value="experience">
+                <input type="checkbox" id="focus-experience" value="experience">
+                <label for="focus-experience">💼 Work Experience</label>
+              </div>
+              <div class="multi-select-option" data-value="all">
+                <input type="checkbox" id="focus-all" value="all">
+                <label for="focus-all">✨ All Profile Data</label>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Writing Style -->
@@ -270,7 +311,7 @@
         <button class="btn-secondary" id="backToStep1">← Back to Insights</button>
         <button class="btn-generate" id="generateContentBtn">
           <span class="btn-icon">✨</span>
-          Write Hyper-Personalized Content
+          Write Personalized Content
         </button>
       </div>
     </div>

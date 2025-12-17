@@ -21,6 +21,7 @@ function extractLinkedInData() {
     certifications: [],
     languages: [],
     recommendations: [],
+    featured: [],
     profile_url: window.location.href
   };
 
@@ -52,10 +53,94 @@ function extractLinkedInData() {
     // Bio/Headline (from title)
     data.bio = data.title;
 
-    // About section
-    const aboutSection = document.querySelector('div[data-section="about"] div.inline-show-more-text span[aria-hidden="true"]');
+    // About section - Enhanced extraction with multiple fallback strategies
+    let aboutText = null;
+
+    // Strategy 1: Use #about anchor to find the section
+    let aboutSection = document.querySelector('#about');
     if (aboutSection) {
-      data.about = aboutSection.textContent.trim();
+      const parentSection = aboutSection.closest('section');
+      if (parentSection) {
+        console.log('Found About section via #about anchor');
+
+        // LinkedIn uses class names like "inline-show-more-text--is-collapsed"
+        // So we need to match partial class names
+        const aboutContainer = parentSection.querySelector('[class*="inline-show-more-text"]');
+        if (aboutContainer) {
+          console.log('Found about container:', aboutContainer.className);
+
+          // Get only the FIRST span with aria-hidden="true" (not the visually-hidden duplicate)
+          const aboutSpans = aboutContainer.querySelectorAll('span[aria-hidden="true"]');
+          if (aboutSpans.length > 0) {
+            // Take the first span that is NOT visually-hidden
+            for (let span of aboutSpans) {
+              if (!span.classList.contains('visually-hidden')) {
+                aboutText = span.textContent.trim();
+                console.log('Extracted about text (length):', aboutText.length);
+                break;
+              }
+            }
+          }
+        }
+
+        // Extract Top Skills from the About card if present
+        if (!data.top_skills_from_about) {
+          const topSkillsEl = parentSection.querySelector('.display-flex.align-items-center.t-14.t-normal span[aria-hidden="true"]');
+          if (topSkillsEl && topSkillsEl.textContent.includes('•')) {
+            data.top_skills_from_about = topSkillsEl.textContent.trim();
+            console.log('Extracted top skills from about:', data.top_skills_from_about);
+          }
+        }
+      }
+    }
+
+    // Strategy 2: Look for section with About header
+    if (!aboutText) {
+      console.log('Trying fallback strategy: looking for About header');
+      const aboutHeaders = document.querySelectorAll('h2.pvs-header__title');
+      for (let header of aboutHeaders) {
+        if (header.textContent.trim() === 'About') {
+          const section = header.closest('section');
+          if (section) {
+            const container = section.querySelector('[class*="inline-show-more-text"]');
+            if (container) {
+              const spans = container.querySelectorAll('span[aria-hidden="true"]');
+              for (let span of spans) {
+                if (!span.classList.contains('visually-hidden')) {
+                  aboutText = span.textContent.trim();
+                  console.log('Extracted about text via header (length):', aboutText.length);
+                  break;
+                }
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    // Strategy 3: Legacy fallback
+    if (!aboutText) {
+      console.log('Trying legacy fallback selector');
+      const aboutContainer = document.querySelector('div[data-section="about"] [class*="inline-show-more-text"]');
+      if (aboutContainer) {
+        const spans = aboutContainer.querySelectorAll('span[aria-hidden="true"]');
+        for (let span of spans) {
+          if (!span.classList.contains('visually-hidden')) {
+            aboutText = span.textContent.trim();
+            console.log('Extracted about text via legacy (length):', aboutText.length);
+            break;
+          }
+        }
+      }
+    }
+
+    // Set the about text if found
+    if (aboutText && aboutText.length > 0) {
+      data.about = aboutText;
+      console.log('✅ Successfully extracted About section');
+    } else {
+      console.log('⚠️ Could not extract About section');
     }
 
     // Experience - Enhanced extraction
@@ -131,6 +216,101 @@ function extractLinkedInData() {
       });
 
       console.log('Total experiences extracted:', data.experience.length);
+    }
+
+    // Featured Section - Extract posts and articles
+    console.log('🔍 Looking for Featured section...');
+    const featuredSection = document.querySelector('#featured');
+    console.log('Featured section element:', featuredSection);
+
+    if (featuredSection) {
+      const parentSection = featuredSection.closest('section');
+      console.log('Parent section:', parentSection);
+
+      // Try multiple selectors for carousel items
+      let featuredItems = parentSection ? parentSection.querySelectorAll('.artdeco-carousel__item') : [];
+
+      if (featuredItems.length === 0) {
+        // Try alternative selector
+        featuredItems = parentSection ? parentSection.querySelectorAll('li.artdeco-carousel__item') : [];
+      }
+
+      console.log('✅ Found', featuredItems.length, 'featured items on LinkedIn profile');
+
+      featuredItems.forEach((item, index) => {
+        if (index < 10) { // Limit to 10 featured items
+          console.log(`Processing featured item ${index + 1}:`, item);
+
+          // Check if it's a Post or Article
+          const typeEl = item.querySelector('.pvs-content__top-bar .t-12 span[aria-hidden="true"]');
+          const type = typeEl ? typeEl.textContent.trim() : 'Post';
+          console.log(`  Type: ${type}`);
+
+          // Extract content/description - try multiple selectors
+          let content = '';
+          let contentEl = item.querySelector('.inline-show-more-text span[dir="ltr"]');
+          if (!contentEl) {
+            contentEl = item.querySelector('.inline-show-more-text span');
+          }
+          if (!contentEl) {
+            contentEl = item.querySelector('.t-14.t-normal.t-black span[aria-hidden="true"]');
+          }
+          if (!contentEl) {
+            contentEl = item.querySelector('.gwmYRviLAxCOREsyEbvWhEzXbAYbeOSYSYbZplE span[dir="ltr"]');
+          }
+          content = contentEl ? contentEl.textContent.trim() : '';
+          console.log(`  Content element:`, contentEl);
+          console.log(`  Content length: ${content.length}`);
+
+          // For articles, get the title - try multiple selectors
+          let title = '';
+          let titleEl = item.querySelector('.text-heading-small .inline-show-more-text span[aria-hidden="true"]');
+          if (!titleEl) {
+            titleEl = item.querySelector('.text-heading-small span[aria-hidden="true"]');
+          }
+          if (!titleEl) {
+            titleEl = item.querySelector('.pvs-media-content__preview .gwmYRviLAxCOREsyEbvWhEzXbAYbeOSYSYbZplE span[dir="ltr"]');
+          }
+          title = titleEl ? titleEl.textContent.trim() : '';
+          console.log(`  Title element:`, titleEl);
+          console.log(`  Title: ${title}`);
+
+          // Extract engagement metrics
+          const reactionsEl = item.querySelector('.social-details-social-counts__reactions-count');
+          const commentsEl = item.querySelector('.social-details-social-counts__comments button span[aria-hidden="true"]');
+
+          const reactions = reactionsEl ? reactionsEl.textContent.trim() : '0';
+          const comments = commentsEl ? commentsEl.textContent.trim() : '0 comments';
+
+          // Extract image URL if available
+          const imageEl = item.querySelector('.pvs-media-content__image img');
+          const imageUrl = imageEl ? imageEl.getAttribute('src') : '';
+
+          // Extract post URL
+          const linkEl = item.querySelector('a.optional-action-target-wrapper');
+          const url = linkEl ? linkEl.getAttribute('href') : '';
+
+          if (content || title) {
+            const featured = {
+              type: type,
+              title: title,
+              content: content,
+              reactions: reactions,
+              comments: comments,
+              image_url: imageUrl,
+              url: url.startsWith('http') ? url : `https://www.linkedin.com${url}`
+            };
+            data.featured.push(featured);
+            console.log('✅ Extracted featured item:', featured);
+          } else {
+            console.log('⚠️ Skipped item - no content or title found');
+          }
+        }
+      });
+
+      console.log('✅ Total featured items extracted:', data.featured.length);
+    } else {
+      console.log('⚠️ No Featured section found on this profile');
     }
 
     // Education

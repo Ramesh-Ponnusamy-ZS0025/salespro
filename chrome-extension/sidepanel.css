@@ -56,8 +56,8 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--gray-800);
   background-color: var(--gray-50);
   overflow-x: hidden;
@@ -94,11 +94,11 @@ body {
 }
 
 .logo-icon {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .logo-text {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
@@ -176,7 +176,7 @@ body {
 }
 
 .step-label {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--gray-500);
   transition: color var(--transition-base);
@@ -202,7 +202,7 @@ body {
 .step {
   display: none;
   flex-direction: column;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   animation: fadeIn var(--transition-base);
 }
 
@@ -225,13 +225,13 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-lg);
-  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
   border-bottom: 2px solid var(--gray-200);
 }
 
 .step-header h2 {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--gray-900);
 }
@@ -243,11 +243,11 @@ body {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--gray-600);
   background-color: var(--gray-100);
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: var(--radius-md);
 }
 
@@ -260,24 +260,24 @@ body {
 ======================================== */
 .profile-card {
   display: flex;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
   background-color: var(--gray-50);
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
 }
 
 .profile-avatar {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -287,22 +287,22 @@ body {
 }
 
 .profile-info h3 {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--gray-900);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .profile-info p {
-  font-size: 14px;
+  font-size: 11px;
   color: var(--gray-600);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .profile-meta {
   display: flex;
-  gap: var(--spacing-md);
-  font-size: 12px;
+  gap: var(--spacing-sm);
+  font-size: 10px;
   color: var(--gray-500);
 }
 
@@ -362,8 +362,8 @@ body {
 
 .insight-card {
   display: flex;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
   background-color: white;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
@@ -418,16 +418,16 @@ body {
 }
 
 .insight-title {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--gray-800);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .insight-text {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--gray-600);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 /* ========================================
@@ -436,8 +436,8 @@ body {
 .form-container {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
 }
 
 .form-group {
@@ -450,17 +450,17 @@ body {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--gray-700);
 }
 
 .label-icon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .label-hint {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 400;
   color: var(--gray-500);
   font-style: italic;
@@ -470,10 +470,10 @@ body {
 .form-input,
 .form-textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-md);
-  font-size: 14px;
+  font-size: 12px;
   color: var(--gray-800);
   background-color: white;
   transition: all var(--transition-fast);
@@ -489,6 +489,177 @@ body {
   -webkit-appearance: none;
   -moz-appearance: none;
   cursor: pointer;
+}
+
+/* Custom Multi-Select Dropdown */
+.custom-multi-select {
+  position: relative;
+  width: 100%;
+}
+
+.multi-select-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background-color: white;
+  color: var(--gray-700);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.multi-select-button:hover {
+  border-color: var(--gray-400);
+  background-color: var(--gray-50);
+}
+
+.multi-select-button:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.multi-select-button svg {
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.multi-select-button.active svg {
+  transform: rotate(180deg);
+}
+
+.multi-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 100;
+  animation: slideDown var(--transition-fast);
+}
+
+.multi-select-dropdown.hidden {
+  display: none;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.multi-select-option {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.multi-select-option:last-child {
+  border-bottom: none;
+}
+
+.multi-select-option:hover {
+  background-color: var(--gray-50);
+}
+
+.multi-select-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  margin-right: 10px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.multi-select-option label {
+  flex: 1;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--gray-800);
+  margin: 0;
+  padding: 0;
+  font-weight: 400;
+}
+
+.multi-select-option input[type="checkbox"]:checked + label {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* Selected Focus Chips */
+.selected-focus-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 0;
+}
+
+.selected-focus-chips:empty {
+  display: none;
+}
+
+.focus-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 500;
+  animation: chipIn var(--transition-fast);
+}
+
+@keyframes chipIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.focus-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  padding: 0;
+  line-height: 1;
+}
+
+.focus-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .form-select:hover {
@@ -623,10 +794,10 @@ body {
 .btn-generate,
 .btn-asset,
 .btn-small {
-  padding: 10px 20px;
+  padding: 8px 16px;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -661,13 +832,21 @@ body {
 .btn-generate {
   background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   color: white;
-  padding: 12px 24px;
-  font-size: 15px;
 }
 
 .btn-generate:hover:not(:disabled) {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Compact buttons in step actions */
+.step-actions .btn-generate {
+  padding: 8px 16px;
+  font-size: 12px;
+}
+
+.step-actions .btn-generate .btn-icon {
+  font-size: 14px;
 }
 
 .btn-asset {
@@ -864,14 +1043,28 @@ button:disabled {
 .step-actions {
   display: flex;
   justify-content: space-between;
-  gap: var(--spacing-md);
-  padding-top: var(--spacing-lg);
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
   border-top: 1px solid var(--gray-200);
   margin-top: auto;
 }
 
 .step-actions button {
-  flex: 1;
+  padding: 8px 16px;
+  font-size: 12px;
+  white-space: nowrap;
+  min-width: auto;
+}
+
+.step-actions .btn-secondary {
+  flex: 0 0 auto;
+}
+
+.step-actions .btn-primary,
+.step-actions .btn-generate {
+  flex: 0 0 auto;
 }
 
 /* ========================================
@@ -949,14 +1142,14 @@ button:disabled {
 
 .generated-content {
   background-color: white;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  font-size: 14px;
-  line-height: 1.8;
+  font-size: 12px;
+  line-height: 1.6;
   color: var(--gray-800);
   white-space: pre-wrap;
-  min-height: 200px;
+  min-height: 150px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -969,7 +1162,7 @@ button:disabled {
 .content-stats {
   display: flex;
   gap: var(--spacing-sm);
-  font-size: 13px;
+  font-size: 11px;
   color: var(--gray-600);
   font-weight: 500;
 }
@@ -1311,7 +1504,12 @@ button:disabled {
   }
 
   .step-actions {
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .step-actions button {
+    font-size: 11px;
+    padding: 6px 12px;
   }
 
   .button-group {

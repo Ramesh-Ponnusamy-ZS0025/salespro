@@ -222,6 +222,9 @@ function setupEventListeners() {
     if (copyBtn) copyBtn.addEventListener('click', copyToClipboard);
     if (regenerateBtn) regenerateBtn.addEventListener('click', generateContent);
 
+    // Custom multi-select dropdown
+    setupContentFocusDropdown();
+
     // Step 3 navigation buttons
     const backToStep2Btn = document.getElementById('backToStep2');
     const generateVariationBtn = document.getElementById('generateVariationBtn');
@@ -270,7 +273,7 @@ function generateInsights(profile) {
     allInsights = [];
     let id = 0;
 
-    // ========== LINKEDIN DATA ==========
+    // ========== LINKEDIN DATA ========== (SELECTED BY DEFAULT)
     // LinkedIn About Me
     if (profile.about) {
         allInsights.push({
@@ -280,19 +283,7 @@ function generateInsights(profile) {
             title: 'LinkedIn: About Me',
             content: profile.about.substring(0, 200) + (profile.about.length > 200 ? '...' : ''),
             fullContent: profile.about,
-            selected: true
-        });
-    }
-
-    // LinkedIn Job Description (Current Role)
-    if (profile.title) {
-        allInsights.push({
-            id: `insight-${id++}`,
-            category: 'LinkedIn Data',
-            icon: '💼',
-            title: 'LinkedIn: Job Description',
-            content: `${profile.title}${profile.company ? ' at ' + profile.company : ''}`,
-            selected: true
+            selected: true  // Selected by default
         });
     }
 
@@ -305,11 +296,23 @@ function generateInsights(profile) {
             title: 'LinkedIn: Company Description',
             content: profile.company_description.substring(0, 200) + (profile.company_description.length > 200 ? '...' : ''),
             fullContent: profile.company_description,
-            selected: true
+            selected: true  // Selected by default
         });
     }
 
-    // ========== COMPANY INFORMATION ==========
+    // Top Skills from About Section
+    if (profile.top_skills_from_about) {
+        allInsights.push({
+            id: `insight-${id++}`,
+            category: 'LinkedIn Data',
+            icon: '⭐',
+            title: 'LinkedIn: Top Skills',
+            content: profile.top_skills_from_about,
+            selected: true  // Selected by default
+        });
+    }
+
+    // ========== COMPANY INFORMATION ========== (UNSELECTED BY DEFAULT)
     // Company Name
     if (profile.company) {
         allInsights.push({
@@ -318,7 +321,7 @@ function generateInsights(profile) {
             icon: '🏢',
             title: 'Company Name',
             content: profile.company,
-            selected: true
+            selected: false
         });
     }
 
@@ -331,7 +334,7 @@ function generateInsights(profile) {
             title: 'Company Description',
             content: profile.company_description.substring(0, 200) + (profile.company_description.length > 200 ? '...' : ''),
             fullContent: profile.company_description,
-            selected: true
+            selected: false
         });
     }
 
@@ -345,7 +348,7 @@ function generateInsights(profile) {
             icon: '📅',
             title: 'How Long Working at Company',
             content: `${years} years, ${months} months at ${profile.company || 'current company'}`,
-            selected: true
+            selected: false
         });
     }
 
@@ -357,7 +360,7 @@ function generateInsights(profile) {
             icon: '🏆',
             title: 'Work Milestones',
             content: profile.work_milestones.join(' • '),
-            selected: true
+            selected: false
         });
     }
 
@@ -369,7 +372,7 @@ function generateInsights(profile) {
             icon: '💼',
             title: 'Business Model',
             content: profile.business_model,
-            selected: true
+            selected: false
         });
     }
 
@@ -381,7 +384,7 @@ function generateInsights(profile) {
             icon: '👥',
             title: 'Company Size',
             content: `~${profile.company_headcount.toLocaleString()} employees`,
-            selected: true
+            selected: false
         });
     }
 
@@ -393,7 +396,7 @@ function generateInsights(profile) {
             icon: '🔄',
             title: 'Number of Roles at Current Company',
             content: `Number of roles at current company: ${profile.num_roles_at_company}`,
-            selected: true
+            selected: false
         });
     }
 
@@ -432,7 +435,7 @@ function generateInsights(profile) {
                     title: `${companyName}${exp.is_current ? ' (Current)' : ''}`,
                     content: content,
                     fullContent: fullContent,
-                    selected: true
+                    selected: false
                 });
                 console.log(`Added experience insight #${index + 1}:`, companyName);
             }
@@ -441,7 +444,7 @@ function generateInsights(profile) {
         console.log('No experience data found in profile');
     }
 
-    // ========== BEHAVIORAL & PERSONALITY INSIGHTS ==========
+    // ========== BEHAVIORAL & PERSONALITY INSIGHTS ========== (UNSELECTED BY DEFAULT)
     if (profile.personality_type) {
         allInsights.push({
             id: `insight-${id++}`,
@@ -449,7 +452,7 @@ function generateInsights(profile) {
             icon: '🧠',
             title: 'Personality Type',
             content: `Personality Type: ${profile.personality_type}`,
-            selected: true
+            selected: false
         });
     }
 
@@ -462,7 +465,7 @@ function generateInsights(profile) {
             icon: '🎯',
             title: 'Selling to this Personality Type',
             content: sellingTips,
-            selected: true
+            selected: false
         });
     }
 
@@ -474,12 +477,14 @@ function generateInsights(profile) {
             icon: '⭐',
             title: 'Top Traits',
             content: `Top Traits: ${profile.top_traits.join(', ')}`,
-            selected: true
+            selected: false
         });
     }
 
 
-    // ========== PSYCHOLOGICAL TRIGGERS ==========
+    // ========== PSYCHOLOGICAL TRIGGERS ========== (REMOVED)
+    // Psychological triggers removed as per user request
+    /*
     const triggers = generatePsychTriggers(profile);
     if (triggers) {
         allInsights.push({
@@ -491,8 +496,9 @@ function generateInsights(profile) {
             selected: true
         });
     }
+    */
 
-    // ========== EMAIL OPTIMIZATION ==========
+    // ========== EMAIL OPTIMIZATION ========== (UNSELECTED BY DEFAULT)
     const emailOpt = generateEmailOptimization(profile);
     if (emailOpt) {
         allInsights.push({
@@ -501,11 +507,11 @@ function generateInsights(profile) {
             icon: '✉️',
             title: 'Email Optimization',
             content: emailOpt,
-            selected: true
+            selected: false
         });
     }
 
-    // ========== WORK MILESTONES ==========
+    // ========== WORK MILESTONES ========== (UNSELECTED BY DEFAULT)
     // Work Anniversary
     if (profile.years_at_company && Math.abs(profile.years_at_company - Math.round(profile.years_at_company)) < 0.1) {
         allInsights.push({
@@ -514,11 +520,55 @@ function generateInsights(profile) {
             icon: '🎉',
             title: 'Work Milestones',
             content: `Upcoming work anniversary - Almost ${Math.round(profile.years_at_company)} years at ${profile.company || 'current company'}`,
-            selected: true
+            selected: false
         });
     }
 
-    // ========== LINKEDIN ACTIVITY ==========
+    // ========== FEATURED CONTENT ========== (HIDDEN)
+    // Feature content extraction disabled as per user request
+    /*
+    if (profile.featured && profile.featured.length > 0) {
+        console.log(`Processing ${profile.featured.length} featured items`);
+
+        profile.featured.forEach((item) => {
+            // Determine content to display
+            let displayContent = '';
+            let fullContent = '';
+            let title = '';
+
+            if (item.type === 'Article') {
+                title = `Article: ${item.title || 'Featured Article'}`;
+                displayContent = item.content ? item.content.substring(0, 150) + '...' : item.title;
+                fullContent = `${item.title}\n\n${item.content}\n\nEngagement: ${item.reactions} reactions, ${item.comments}`;
+            } else {
+                title = 'Featured Post';
+                displayContent = item.content ? item.content.substring(0, 150) + '...' : '';
+                fullContent = `${item.content}\n\nEngagement: ${item.reactions} reactions, ${item.comments}`;
+            }
+
+            // Add engagement info to display content
+            if (item.reactions !== '0' || item.comments !== '0 comments') {
+                displayContent += `\n\n💬 ${item.reactions} reactions • ${item.comments}`;
+            }
+
+            if (displayContent) {
+                allInsights.push({
+                    id: `insight-${id++}`,
+                    category: 'Featured Content',
+                    icon: item.type === 'Article' ? '📰' : '⭐',
+                    title: title,
+                    content: displayContent,
+                    fullContent: fullContent,
+                    selected: true
+                });
+            }
+        });
+
+        console.log(`Total featured insights added: ${allInsights.filter(i => i.category === 'Featured Content').length}`);
+    }
+    */
+
+    // ========== LINKEDIN ACTIVITY ========== (SELECTED BY DEFAULT)
     if (profile.posts && profile.posts.length > 0) {
         profile.posts.slice(0, 3).forEach((post) => {
             const postText = typeof post === 'string' ? post : (post.text || post.content || '');
@@ -530,13 +580,13 @@ function generateInsights(profile) {
                     title: 'Recent LinkedIn Post',
                     content: postText.substring(0, 200) + (postText.length > 200 ? '...' : ''),
                     fullContent: postText,
-                    selected: true
+                    selected: true  // Selected by default
                 });
             }
         });
     }
 
-    // ========== RECOMMENDATIONS ==========
+    // ========== RECOMMENDATIONS ========== (UNSELECTED BY DEFAULT)
     if (profile.recommendations && profile.recommendations.length > 0) {
         console.log(`Processing ${profile.recommendations.length} recommendations for insights`);
 
@@ -569,7 +619,7 @@ function generateInsights(profile) {
                     title: recTitle,
                     content: recText.substring(0, 200) + (recText.length > 200 ? '...' : ''),
                     fullContent: recText,
-                    selected: true
+                    selected: false
                 };
                 allInsights.push(insight);
                 console.log('Added recommendation insight:', insight.title);
@@ -581,7 +631,7 @@ function generateInsights(profile) {
         console.log('No recommendations found in profile data');
     }
 
-    // ========== SHARED EXPERIENCE ==========
+    // ========== SHARED EXPERIENCE ========== (UNSELECTED BY DEFAULT)
     if (profile.location) {
         allInsights.push({
             id: `insight-${id++}`,
@@ -589,7 +639,7 @@ function generateInsights(profile) {
             icon: '📍',
             title: 'Geographic Location',
             content: `Based in ${profile.location}`,
-            selected: true
+            selected: false
         });
     }
 
@@ -601,11 +651,11 @@ function generateInsights(profile) {
             icon: '🤝',
             title: 'Shared Customers',
             content: `Shared customers: ${profile.shared_customers.slice(0, 3).join(', ')}`,
-            selected: true
+            selected: false
         });
     }
 
-    // ========== PROFESSIONAL BACKGROUND ==========
+    // ========== PROFESSIONAL BACKGROUND ========== (UNSELECTED BY DEFAULT)
     // Skills
     if (profile.skills && profile.skills.length > 0) {
         allInsights.push({
@@ -614,7 +664,7 @@ function generateInsights(profile) {
             icon: '🎯',
             title: `${profile.skills.length} Skills Listed`,
             content: `Top skills: ${profile.skills.slice(0, 5).join(', ')}`,
-            selected: true
+            selected: false
         });
     }
 
@@ -626,11 +676,11 @@ function generateInsights(profile) {
             icon: '🎓',
             title: 'Education',
             content: `Studied at ${profile.education[0].school || 'university'}`,
-            selected: true
+            selected: false
         });
     }
 
-    // ========== SUGGESTED NEXT STEPS ==========
+    // ========== SUGGESTED NEXT STEPS ========== (UNSELECTED BY DEFAULT)
     const nextSteps = generateNextSteps(profile);
     if (nextSteps) {
         allInsights.push({
@@ -639,7 +689,7 @@ function generateInsights(profile) {
             icon: '🚀',
             title: 'Suggested Next Steps',
             content: nextSteps,
-            selected: true
+            selected: false
         });
     }
 
@@ -660,7 +710,9 @@ function generateSellingTips(personalityType) {
     return tips[personalityType] || `Selling to ${personalityType} personality: Tailor your approach based on their communication preferences.`;
 }
 
-// Helper function to generate psychological triggers
+// Helper function to generate psychological triggers (REMOVED)
+// Function removed as per user request
+/*
 function generatePsychTriggers(profile) {
     const triggers = [];
 
@@ -675,6 +727,7 @@ function generatePsychTriggers(profile) {
 
     return triggers.join(' • ');
 }
+*/
 
 // Helper function to generate email optimization tips
 function generateEmailOptimization(profile) {
@@ -806,10 +859,112 @@ function updateSelectionCounter() {
     }
 }
 
-// Update Focus Content dropdown based on available insights
+// Setup custom multi-select dropdown for Content Focus
+function setupContentFocusDropdown() {
+    const button = document.getElementById('contentFocusButton');
+    const dropdown = document.getElementById('contentFocusDropdown');
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+
+    // Toggle dropdown on button click
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('hidden');
+        button.classList.toggle('active');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!button.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+            button.classList.remove('active');
+        }
+    });
+
+    // Handle checkbox changes
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            updateContentFocusChips();
+            updateContentFocusButtonText();
+        });
+    });
+
+    // Handle clicking on option div (toggle checkbox)
+    dropdown.querySelectorAll('.multi-select-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'LABEL') {
+                const checkbox = option.querySelector('input[type="checkbox"]');
+                checkbox.checked = !checkbox.checked;
+                updateContentFocusChips();
+                updateContentFocusButtonText();
+            }
+        });
+    });
+
+    // Initialize chips and button text
+    updateContentFocusChips();
+    updateContentFocusButtonText();
+}
+
+// Update the chips display based on selected checkboxes
+function updateContentFocusChips() {
+    const chipsContainer = document.getElementById('selectedFocusChips');
+    const dropdown = document.getElementById('contentFocusDropdown');
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+
+    // Clear existing chips
+    chipsContainer.innerHTML = '';
+
+    // Add chip for each selected option
+    checkboxes.forEach(checkbox => {
+        const label = dropdown.querySelector(`label[for="${checkbox.id}"]`);
+        const chipText = label.textContent;
+
+        const chip = document.createElement('div');
+        chip.className = 'focus-chip';
+        chip.innerHTML = `
+            <span>${chipText}</span>
+            <button type="button" class="focus-chip-remove" data-value="${checkbox.value}">×</button>
+        `;
+
+        // Handle chip removal
+        const removeBtn = chip.querySelector('.focus-chip-remove');
+        removeBtn.addEventListener('click', () => {
+            checkbox.checked = false;
+            updateContentFocusChips();
+            updateContentFocusButtonText();
+        });
+
+        chipsContainer.appendChild(chip);
+    });
+}
+
+// Update button text based on number of selections
+function updateContentFocusButtonText() {
+    const buttonText = document.getElementById('contentFocusButtonText');
+    const dropdown = document.getElementById('contentFocusDropdown');
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+
+    if (checkboxes.length === 0) {
+        buttonText.textContent = 'Select content focus...';
+    } else if (checkboxes.length === 1) {
+        const label = dropdown.querySelector(`label[for="${checkboxes[0].id}"]`);
+        buttonText.textContent = label.textContent;
+    } else {
+        buttonText.textContent = `${checkboxes.length} options selected`;
+    }
+}
+
+// Get selected content focus values
+function getSelectedContentFocus() {
+    const dropdown = document.getElementById('contentFocusDropdown');
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+// Update Focus Content dropdown based on available insights (multi-select)
 function updateContentFocusOptions() {
-    const contentFocusSelect = document.getElementById('contentFocus');
-    if (!contentFocusSelect) return;
+    const dropdown = document.getElementById('contentFocusDropdown');
+    if (!dropdown) return;
 
     // Check what types of insights are available
     const availableOptions = new Set();
@@ -823,6 +978,9 @@ function updateContentFocusOptions() {
         const title = insight.title.toLowerCase();
 
         // Map insights to focus options
+        if (category === 'featured content') {
+            availableOptions.add('featured');
+        }
         if (category === 'linkedin activity' || title.includes('post')) {
             availableOptions.add('recent_posts');
         }
@@ -846,46 +1004,28 @@ function updateContentFocusOptions() {
         }
     });
 
-    // Define all possible options with their labels
-    const allOptions = [
-        { value: 'recent_posts', label: '📰 Recent Posts', default: true },
-        { value: 'skills', label: '🎯 Skills & Expertise' },
-        { value: 'recommendations', label: '⭐ Recommendations' },
-        { value: 'geography', label: '📍 Geography & Location' },
-        { value: 'about', label: '📝 Profile Description (About)' },
-        { value: 'education', label: '🎓 Education Background' },
-        { value: 'experience', label: '💼 Work Experience' },
-        { value: 'all', label: 'All Profile Data' }
-    ];
+    // Get currently selected values to preserve them
+    const currentlySelected = getSelectedContentFocus();
 
-    // Get current selection to preserve it if possible
-    const currentValue = contentFocusSelect.value;
-
-    // Clear and repopulate dropdown
-    contentFocusSelect.innerHTML = '';
-
-    // Add only available options
-    let hasDefault = false;
+    // Show/hide options based on availability
+    const allOptions = dropdown.querySelectorAll('.multi-select-option');
     allOptions.forEach(option => {
-        if (availableOptions.has(option.value)) {
-            const optionEl = document.createElement('option');
-            optionEl.value = option.value;
-            optionEl.textContent = option.label + (option.default && !hasDefault ? ' (Default)' : '');
-
-            // Set as selected if it matches current value, or if it's the first default
-            if (option.value === currentValue || (option.default && !hasDefault && !currentValue)) {
-                optionEl.selected = true;
-                hasDefault = true;
+        const value = option.dataset.value;
+        if (availableOptions.has(value)) {
+            option.style.display = 'flex';
+        } else {
+            option.style.display = 'none';
+            // Uncheck if hidden
+            const checkbox = option.querySelector('input[type="checkbox"]');
+            if (checkbox.checked) {
+                checkbox.checked = false;
             }
-
-            contentFocusSelect.appendChild(optionEl);
         }
     });
 
-    // If current selection is no longer available, select the first available option
-    if (!availableOptions.has(currentValue)) {
-        contentFocusSelect.selectedIndex = 0;
-    }
+    // Update chips and button text after changes
+    updateContentFocusChips();
+    updateContentFocusButtonText();
 
     console.log('Updated Focus Content dropdown with available options:', Array.from(availableOptions));
 }
@@ -1417,60 +1557,63 @@ async function loadValuePropositions() {
     }
 }
 
-// Filter insights based on content focus selection
-function filterInsightsByFocus(insights, focusType) {
-    // If "all", return all insights
-    if (focusType === 'all') {
+// Filter insights based on content focus selection (now supports multiple focus types)
+function filterInsightsByFocus(insights, focusTypes) {
+    // Handle single value (backward compatibility)
+    if (typeof focusTypes === 'string') {
+        focusTypes = [focusTypes];
+    }
+
+    // If "all" is selected, return all insights
+    if (focusTypes.includes('all')) {
         return insights;
     }
 
-    // Filter insights by matching title, content, or category
-    const filtered = insights.filter(insight => {
+    // Helper function to match insight against a single focus type
+    const matchesFocusType = (insight, focusType) => {
         const title = insight.title.toLowerCase();
         const category = insight.category.toLowerCase();
         const content = (insight.content || '').toLowerCase();
 
         switch(focusType) {
+            case 'featured':
+                return category === 'featured content' ||
+                       title.includes('featured') ||
+                       title.includes('article:');
+
             case 'recent_posts':
-                // Match LinkedIn Activity category OR title contains "post"
                 return category === 'linkedin activity' ||
                        title.includes('post') ||
                        title.includes('linkedin post');
 
             case 'skills':
-                // Match only insights about skills
                 return title.includes('skill') ||
                        title.includes('expertise') ||
                        (category === 'professional background' && title.includes('skills listed'));
 
             case 'recommendations':
-                // Match Recommendations category
                 return category === 'recommendations' ||
                        title.includes('recommendation from');
 
             case 'geography':
-                // Match location/geography insights
                 return title.includes('location') ||
                        title.includes('geographic') ||
                        title.includes('based in') ||
                        category === 'shared experience';
 
             case 'about':
-                // Match About/Bio insights
                 return title.includes('about') ||
                        title.includes('about me') ||
                        title.includes('bio') ||
                        (category === 'linkedin data' && title.includes('about'));
 
             case 'education':
-                // Match education insights
                 return title.includes('education') ||
                        title.includes('studied at') ||
                        title.includes('degree') ||
                        title.includes('university');
 
             case 'experience':
-                // Match work experience insights
                 return title.includes('experience') ||
                        title.includes('job description') ||
                        title.includes('working at') ||
@@ -1482,9 +1625,14 @@ function filterInsightsByFocus(insights, focusType) {
             default:
                 return false;
         }
+    };
+
+    // Filter insights that match ANY of the selected focus types
+    const filtered = insights.filter(insight => {
+        return focusTypes.some(focusType => matchesFocusType(insight, focusType));
     });
 
-    console.log(`Filtered insights for focus "${focusType}":`, {
+    console.log(`Filtered insights for focus types [${focusTypes.join(', ')}]:`, {
         original: insights.length,
         filtered: filtered.length,
         matchedInsights: filtered.map(i => i.title)
@@ -1511,15 +1659,20 @@ async function generateContent() {
         }
 
         showLoading(true);
-        // Get the selected content focus
-        const contentFocus = document.getElementById('contentFocus')?.value || 'recent_posts';
+        // Get all selected content focus values from custom dropdown
+        const contentFocusArray = getSelectedContentFocus();
 
-        // Filter insights based on content focus
-        const filteredInsights = filterInsightsByFocus(selectedInsights, contentFocus);
+        // If no focus selected, default to recent_posts
+        if (contentFocusArray.length === 0) {
+            contentFocusArray.push('recent_posts');
+        }
+
+        // Filter insights based on content focus (now handles multiple)
+        const filteredInsights = filterInsightsByFocus(selectedInsights, contentFocusArray);
 
         // If no insights match the focus, warn the user
         if (filteredInsights.length === 0) {
-            alert(`No insights available for "${contentFocus}". Please select different content focus or go back to Step 1 to ensure relevant insights are selected.`);
+            alert(`No insights available for the selected focus areas. Please select different content focus or go back to Step 1 to ensure relevant insights are selected.`);
             showLoading(false);
             return;
         }
@@ -1562,7 +1715,7 @@ async function generateContent() {
             linkedin_data: currentProfile,
             selected_insights: insightsForBackend,
             content_type: selectedContentType,
-            content_focus: contentFocus,  // Use the already retrieved value
+            content_focus: contentFocusArray.join(', '),  // Send as comma-separated string for backend
             writing_style: document.getElementById('writingStyle')?.value || 'data-driven',
             value_proposition: valueProposition,
             additional_context: document.getElementById('additionalInput')?.value || '',

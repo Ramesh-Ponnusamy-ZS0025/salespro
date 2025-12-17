@@ -9,6 +9,13 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -16,6 +23,15 @@ const API = `${BACKEND_URL}/api`;
 const INDUSTRIES = [
   'Fintech', 'Healthcare', 'E-commerce', 'SaaS', 'Manufacturing',
   'Real Estate', 'Education', 'Retail', 'Logistics', 'Other'
+];
+
+const PERSONAS = [
+  'CEO', 'CTO', 'CFO', 'COO',
+  'VP of Sales', 'VP of Marketing', 'VP of Engineering', 'VP of Operations',
+  'Sales Director', 'Marketing Director', 'IT Director', 'Operations Director',
+  'Sales Manager', 'Marketing Manager', 'Product Manager', 'Project Manager',
+  'Business Owner', 'Founder', 'Entrepreneur',
+  'Other'
 ];
 
 const GTMGenerator = ({ user, onLogout }) => {
@@ -36,7 +52,7 @@ const GTMGenerator = ({ user, onLogout }) => {
     linkedin_url: '',
     offering: '',
     pain_points: '',
-    target_personas: '',
+    target_personas: [], // Changed to array for multi-select
     use_cases: '',
     key_features: '',
     customer_profile_details: '', // NEW FIELD
@@ -65,8 +81,27 @@ const GTMGenerator = ({ user, onLogout }) => {
     setMessages(prev => [...prev, { content, sender, timestamp: new Date() }]);
   };
 
+  const togglePersona = (persona) => {
+    setFormData(prev => {
+      const currentPersonas = prev.target_personas || [];
+      if (currentPersonas.includes(persona)) {
+        // Remove persona
+        return {
+          ...prev,
+          target_personas: currentPersonas.filter(p => p !== persona)
+        };
+      } else {
+        // Add persona
+        return {
+          ...prev,
+          target_personas: [...currentPersonas, persona]
+        };
+      }
+    });
+  };
+
   const handleStartGeneration = async () => {
-    if (!formData.company_name || !formData.industry || !formData.offering || !formData.pain_points) {
+    if (!formData.company_name || !formData.industry || !formData.offering || !formData.pain_points || formData.target_personas.length === 0) {
       toast.error('Please fill in required fields (marked with *)');
       return;
     }
@@ -79,7 +114,7 @@ const GTMGenerator = ({ user, onLogout }) => {
       const response = await axios.post(`${API}/gtm/validate`, {
         ...formData,
         pain_points: formData.pain_points.split(',').map(p => p.trim()).filter(Boolean),
-        target_personas: formData.target_personas.split(',').map(p => p.trim()).filter(Boolean),
+        target_personas: Array.isArray(formData.target_personas) ? formData.target_personas : [],
         use_cases: formData.use_cases.split(',').map(p => p.trim()).filter(Boolean),
         key_features: formData.key_features.split(',').map(p => p.trim()).filter(Boolean),
       });
@@ -104,11 +139,7 @@ const GTMGenerator = ({ user, onLogout }) => {
         validationMsg += `\n`;
       }
 
-      validationMsg += `Would you like me to:\n`;
-      validationMsg += `1. **Generate the prompt** as-is\n`;
-      validationMsg += `2. **Make adjustments** based on suggestions\n`;
-      validationMsg += `3. **Add more details** to any section\n\n`;
-      validationMsg += `Type your choice or provide additional instructions.`;
+      validationMsg += `Click **Generate Prompt** below to create your microsite prompt, or provide additional instructions in the chat.`;
 
       addMessage(validationMsg, 'assistant');
 
@@ -120,11 +151,66 @@ const GTMGenerator = ({ user, onLogout }) => {
     }
   };
 
-  const handleQuickAction = (action) => {
-    setUserInput(action);
-    setTimeout(() => {
-      handleUserMessage();
-    }, 100);
+  const handleQuickAction = async (action) => {
+    if (!action.trim() || loading) return;
+
+    addMessage(action, 'user');
+    setLoading(true);
+
+    try {
+      const response = await axios.post(`${API}/gtm/process-feedback`, {
+        feedback: action,
+        validation_result: validationResult,
+        form_data: formData,
+      });
+
+      // Update form data if backend extracted new information
+      if (response.data.updated_form_data) {
+        setFormData(prev => ({ ...prev, ...response.data.updated_form_data }));
+      }
+
+      if (response.data.should_regenerate || response.data.action === 'generate') {
+        addMessage(response.data.message, 'assistant');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        addMessage('Generating your comprehensive microsite prompt... 🚀', 'assistant');
+
+        try {
+          const finalFormData = {
+            ...formData,
+            user_adjustments: userAdjustments
+          };
+
+          const promptResponse = await axios.post(`${API}/gtm/generate-final-prompt`, {
+            form_data: finalFormData,
+            validation_result: validationResult,
+          });
+
+          setFinalPrompt(promptResponse.data);
+          setPromptPanelOpen(true);
+
+          addMessage(
+            '✅ **Prompt Generated Successfully!**\n\nYour production-ready microsite prompt is now available in the preview panel on the right.',
+            'assistant'
+          );
+        } catch (error) {
+          console.error('Generation error:', error.response?.data);
+          addMessage('❌ Failed to generate prompt. Please try again.', 'assistant');
+          toast.error(error.response?.data?.detail || 'Generation failed');
+        }
+      } else {
+        addMessage(response.data.message, 'assistant');
+        if (response.data.updated_validation) {
+          setValidationResult(response.data.updated_validation);
+        }
+      }
+
+    } catch (error) {
+      console.error('Feedback processing error:', error.response?.data);
+      addMessage('I had trouble processing that. Could you provide more details or try rephrasing?', 'assistant');
+      toast.error('Processing failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
  const handleUserMessage = async () => {
@@ -247,7 +333,7 @@ const GTMGenerator = ({ user, onLogout }) => {
       linkedin_url: '',
       offering: '',
       pain_points: '',
-      target_personas: '',
+      target_personas: [],
       use_cases: '',
       key_features: '',
       customer_profile_details: '',
@@ -325,13 +411,44 @@ const GTMGenerator = ({ user, onLogout }) => {
 
               <div>
                 <Label className="text-sm font-medium">Target Decision Makers *</Label>
-                <Textarea
-                  value={formData.target_personas}
-                  onChange={(e) => setFormData({ ...formData, target_personas: e.target.value })}
-                  placeholder="CEO, CTO, Sales Director"
-                  rows={2}
-                  className="mt-1"
-                />
+                <Select onValueChange={togglePersona}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder={
+                      formData.target_personas.length > 0
+                        ? `${formData.target_personas.length} persona${formData.target_personas.length > 1 ? 's' : ''} selected`
+                        : "Select target personas"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PERSONAS.map((persona) => (
+                      <SelectItem
+                        key={persona}
+                        value={persona}
+                        disabled={persona !== 'Other' && formData.target_personas.includes(persona)}
+                      >
+                        {persona} {formData.target_personas.includes(persona) && '✓'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.target_personas.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.target_personas.map((persona) => (
+                      <span
+                        key={persona}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md text-sm"
+                      >
+                        {persona}
+                        <button
+                          onClick={() => togglePersona(persona)}
+                          className="hover:bg-indigo-200 rounded-full p-0.5"
+                        >
+                          <X size={14} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -475,9 +592,20 @@ const GTMGenerator = ({ user, onLogout }) => {
                 </p>
               </div>
             ) : (
-              messages.map((msg, idx) => (
-                <ChatBubble key={idx} message={msg} onQuickAction={handleQuickAction} />
-              ))
+              messages.map((msg, idx) => {
+                // Find the index of the last assistant message
+                const lastAssistantIndex = messages.map(m => m.sender).lastIndexOf('assistant');
+                const isLastAssistant = idx === lastAssistantIndex;
+
+                return (
+                  <ChatBubble
+                    key={idx}
+                    message={msg}
+                    onQuickAction={handleQuickAction}
+                    showButton={isLastAssistant}
+                  />
+                );
+              })
             )}
             <div ref={chatEndRef} />
           </div>
@@ -539,44 +667,32 @@ const GTMGenerator = ({ user, onLogout }) => {
   );
 };
 
-const ChatBubble = ({ message, onQuickAction }) => {
+const ChatBubble = ({ message, onQuickAction, showButton }) => {
   const isUser = message.sender === 'user';
-  const hasQuickActions = message.sender === 'assistant' && message.content.includes('Would you like me to');
-  
+  const isAssistant = message.sender === 'assistant';
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[75%] ${isUser ? '' : 'space-y-3'}`}>
         <div className={`rounded-2xl px-4 py-3 ${
-          isUser 
-            ? 'bg-indigo-600 text-white' 
+          isUser
+            ? 'bg-indigo-600 text-white'
             : 'bg-slate-100 border border-slate-200 text-slate-900'
         }`}>
           <div className="text-sm whitespace-pre-wrap leading-relaxed">
-            {message.content.split('**').map((part, idx) => 
+            {message.content.split('**').map((part, idx) =>
               idx % 2 === 1 ? <strong key={idx}>{part}</strong> : part
             )}
           </div>
         </div>
-        
-        {hasQuickActions && onQuickAction && (
+
+        {isAssistant && onQuickAction && showButton && (
           <div className="flex flex-wrap gap-2 mt-2">
             <button
-              onClick={() => onQuickAction('1')}
-              className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              onClick={() => onQuickAction('generate prompt')}
+              className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              1. Generate Prompt
-            </button>
-            <button
-              onClick={() => onQuickAction('2')}
-              className="px-3 py-1.5 text-xs font-medium bg-slate-600 text-white rounded-lg hover:bg-slate-700"
-            >
-              2. Make Adjustments
-            </button>
-            <button
-              onClick={() => onQuickAction('3')}
-              className="px-3 py-1.5 text-xs font-medium bg-slate-600 text-white rounded-lg hover:bg-slate-700"
-            >
-              3. Add More Details
+              Generate Prompt
             </button>
           </div>
         )}
