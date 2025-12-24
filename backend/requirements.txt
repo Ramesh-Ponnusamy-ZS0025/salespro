@@ -129,3 +129,4 @@ msal==1.31.1
 beautifulsoup4==4.12.3
 selenium==4.16.0
 flask==3.0.0
+sentence-transformers
