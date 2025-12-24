@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{COMPANY_NAME}} - Transformation Journey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Suppress Tailwind CDN warning
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '{{PRIMARY_COLOR}}',
+                        secondary: '{{SECONDARY_COLOR}}',
+                        accent: '{{ACCENT_COLOR}}'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(236, 72, 153, 0.7); }
+        }
+
+        .fade-in {
+            opacity: 0;
+        }
+
+        .fade-in-visible {
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .glow-effect {
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.5),
+                        0 0 40px rgba(139, 92, 246, 0.3);
+        }
+
+        .glow-hover:hover {
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.7),
+                        0 0 60px rgba(139, 92, 246, 0.5);
+            transform: translateY(-2px);
+        }
+
+        {{CUSTOM_CSS}}
+    </style>
+</head>
+<body class="{{BODY_CLASS}}">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="text-2xl font-bold {{TEXT_GRADIENT_CLASS}}">{{COMPANY_NAME}}</div>
+            <div class="hidden md:flex gap-6">
+                <a href="#home" class="hover:text-primary transition-colors">Home</a>
+                <a href="#challenges" class="hover:text-primary transition-colors">Challenges</a>
+                <a href="#solutions" class="hover:text-primary transition-colors">Solutions</a>
+                <a href="#use-cases" class="hover:text-primary transition-colors">Use Cases</a>
+                <a href="#results" class="hover:text-primary transition-colors">Results</a>
+                <a href="#contact" class="hover:text-primary transition-colors">Contact</a>
+            </div>
+            <button onclick="toggleMobileMenu()" class="md:hidden">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-t">
+            <a href="#home" class="block px-4 py-2 hover:bg-gray-100">Home</a>
+            <a href="#challenges" class="block px-4 py-2 hover:bg-gray-100">Challenges</a>
+            <a href="#solutions" class="block px-4 py-2 hover:bg-gray-100">Solutions</a>
+            <a href="#use-cases" class="block px-4 py-2 hover:bg-gray-100">Use Cases</a>
+            <a href="#results" class="block px-4 py-2 hover:bg-gray-100">Results</a>
+            <a href="#contact" class="block px-4 py-2 hover:bg-gray-100">Contact</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="min-h-screen flex items-center justify-center pt-20 {{HERO_BG_CLASS}}">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <div class="fade-in">
+                <h1 class="text-6xl md:text-7xl font-bold mb-6 {{HERO_TEXT_CLASS}}">
+                    {{HERO_HEADLINE}}
+                </h1>
+                <p class="text-xl md:text-2xl {{HERO_SUBTEXT_CLASS}} mb-8 max-w-3xl mx-auto">
+                    {{HERO_TAGLINE}}
+                </p>
+                <button onclick="scrollToSection('use-cases')" class="{{CTA_BUTTON_CLASS}} px-8 py-4 rounded-full text-lg font-semibold transition-all duration-300 hover:scale-105 {{GLOW_CLASS}}">
+                    {{CTA_TEXT}}
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Trust Bar -->
+    <section class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <h3 class="text-lg text-gray-600 mb-8">Trusted by leading organizations</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 items-center">
+                {{TRUST_LOGOS}}
+            </div>
+        </div>
+    </section>
+
+    <!-- Current Challenges -->
+    <section id="challenges" class="py-20 {{SECTION_BG_CLASS}}">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-5xl font-bold text-center mb-16 {{SECTION_HEADER_CLASS}}">Current Challenges</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {{PAIN_POINT_CARDS}}
+            </div>
+        </div>
+    </section>
+
+    <!-- How We Transform -->
+    <section id="solutions" class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-5xl font-bold text-center mb-16">How We Transform</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {{VALUE_PROP_CARDS}}
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Use Case Gallery -->
+    <section id="use-cases" class="py-20 {{SECTION_BG_CLASS}}">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-5xl font-bold text-center mb-4">Experience the Transformation</h2>
+            <p class="text-xl text-center text-gray-600 mb-16">Click on any use case to see it in action</p>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {{USE_CASE_CARDS}}
+            </div>
+        </div>
+    </section>
+
+    <!-- Case Studies -->
+    <section id="results" class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-5xl font-bold text-center mb-16">Proven Results</h2>
+            <div class="grid md:grid-cols-2 gap-8">
+                {{CASE_STUDY_CARDS}}
+            </div>
+        </div>
+    </section>
+
+    <!-- ROI Metrics -->
+    <section class="py-20 {{SECTION_BG_CLASS}}">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-5xl font-bold text-center mb-16">By the Numbers</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                {{METRIC_CARDS}}
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-5xl font-bold text-center mb-16">What Our Clients Say</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                {{TESTIMONIAL_CARDS}}
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section id="contact" class="py-20 {{HERO_BG_CLASS}}">
+        <div class="max-w-4xl mx-auto px-4 text-center">
+            <h2 class="text-5xl font-bold mb-6 {{HERO_TEXT_CLASS}}">Ready to Transform?</h2>
+            <p class="text-xl {{HERO_SUBTEXT_CLASS}} mb-12">Let's discuss how we can help you achieve similar results</p>
+
+            <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl">
+                <form onsubmit="handleFormSubmit(event)" class="space-y-6">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <input type="text" placeholder="Your Name" required class="px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <input type="email" placeholder="Email Address" required class="px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <input type="text" placeholder="Company Name" required class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent">
+                    <textarea placeholder="Tell us about your challenges..." rows="4" required class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"></textarea>
+                    <button type="submit" class="{{CTA_BUTTON_CLASS}} px-8 py-4 rounded-full text-lg font-semibold transition-all duration-300 hover:scale-105 {{GLOW_CLASS}}">
+                        Send Message
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <h3 class="text-xl font-bold mb-4">{{COMPANY_NAME}}</h3>
+                    <p class="text-gray-400">Transforming businesses through innovation</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-4">Quick Links</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#home" class="hover:text-white transition-colors">Home</a></li>
+                        <li><a href="#challenges" class="hover:text-white transition-colors">Challenges</a></li>
+                        <li><a href="#solutions" class="hover:text-white transition-colors">Solutions</a></li>
+                        <li><a href="#use-cases" class="hover:text-white transition-colors">Use Cases</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-4">Resources</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#results" class="hover:text-white transition-colors">Case Studies</a></li>
+                        <li><a href="#contact" class="hover:text-white transition-colors">Contact</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-4">Connect</h4>
+                    <div class="flex gap-4">
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 {{COMPANY_NAME}}. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modals will be inserted here -->
+    {{MODALS}}
+
+    <script>
+        // Smooth scroll
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        }
+
+        // Open modal
+        function openModal(modalId) {
+            document.getElementById(modalId + '-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Close modal
+        function closeModal(modalId) {
+            document.getElementById(modalId + '-modal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close modal on escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('[id$="-modal"]').forEach(modal => {
+                    modal.classList.add('hidden');
+                });
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        // Fade in on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('fade-in-visible');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+        // Form submission
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const button = form.querySelector('button[type="submit"]');
+
+            button.disabled = true;
+            button.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Sending...';
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            alert('Thank you! We will be in touch soon.');
+            form.reset();
+            button.disabled = false;
+            button.innerHTML = 'Send Message';
+        }
+    </script>
+</body>
+</html>
