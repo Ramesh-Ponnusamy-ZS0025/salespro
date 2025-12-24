@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Megaphone, MessageSquare, Mail, FileText, Globe, TrendingUp, Bookmark, FolderOpen, LogOut, Newspaper, ChevronDown, ChevronRight, Scale } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageSquare, Mail, FileText, Globe, TrendingUp, Bookmark, FolderOpen, LogOut, Newspaper, ChevronDown, ChevronRight, Scale, Code2 } from 'lucide-react';
 
 const Layout = ({ children, user, onLogout }) => {
   const location = useLocation();
@@ -13,6 +13,7 @@ const Layout = ({ children, user, onLogout }) => {
     { path: '/personalize', icon: MessageSquare, label: 'Personalize' },
     { path: '/thread-intelligence', icon: Mail, label: 'Thread Intelligence' },
     { path: '/gtm', icon: Globe, label: 'GTM Generator' },
+    { path: '/microsite-generator', icon: Code2, label: 'Microsite Generator' },
     { path: '/documents', icon: FileText, label: 'Documents' },
     {
       label: 'Content Management',

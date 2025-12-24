@@ -17,6 +17,7 @@ import LearningHub from './pages/LearningHub';
 import SavedItems from './pages/SavedItems';
 import DocumentManagement from './pages/DocumentManagement';
 import ZuciNews from './pages/ZuciNews';
+import MicrositeGenerator from './pages/MicrositeGenerator';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -193,6 +194,16 @@ function App() {
           element={
             isAuthenticated ? (
               <ZuciNews user={user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/auth" replace />
+            )
+          }
+        />
+        <Route
+          path="/microsite-generator"
+          element={
+            isAuthenticated ? (
+              <MicrositeGenerator user={user} onLogout={handleLogout} />
             ) : (
               <Navigate to="/auth" replace />
             )

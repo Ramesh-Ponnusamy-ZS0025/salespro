@@ -32,6 +32,7 @@ import documents
 import document_management
 import zuci_news
 import content_management
+import microsite
 
 # Import new Chrome extension modules
 from modules.content_generation import routes as content_generation
@@ -151,6 +152,7 @@ async def startup_event():
     document_management.set_db(db)
     zuci_news.set_db(db)
     content_management.set_db(db)
+    microsite.set_db(db)
 
     # Set LLM helper for modules that need it
     agent_builder.set_llm_helper(generate_llm_response)
@@ -159,12 +161,14 @@ async def startup_event():
     personalize.set_llm_helper(generate_llm_response)
     thread_intelligence.set_llm_helper(generate_llm_response)
     document_management.set_llm_helper(generate_llm_response)
+    microsite.set_llm_helper(generate_llm_response)
 
     # Set case study manager for campaign, thread intelligence, personalize, and document_management modules
     campaign.set_case_study_manager(case_study_manager)
     thread_intelligence.set_case_study_manager(case_study_manager)
     personalize.set_case_study_manager(case_study_manager)
     document_management.set_case_study_manager(case_study_manager)
+    microsite.set_case_study_manager(case_study_manager)
 
     # Sync documents missing from vector database on startup
     try:
@@ -216,6 +220,7 @@ app.include_router(documents.router)
 app.include_router(document_management.router)
 app.include_router(zuci_news.router)
 app.include_router(content_management.router)
+app.include_router(microsite.router)
 
 # Include Chrome extension routers
 app.include_router(content_generation.router)
@@ -251,6 +256,7 @@ async def root():
             "personalize",
             "thread_intelligence",
             "documents",
-            "document_management"
+            "document_management",
+            "microsite"
         ]
     }
