@@ -1,9 +1,10 @@
+import httpx
 from groq import Groq
 from config.tone_config import get_system_prompt, get_email_structure_validation, format_email_output
 
 # LLM Config
 GROQ_API_KEY = "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"
-groq_client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY, http_client=httpx.Client(verify=False))
 
 
 # ============== LLM SYSTEM PROMPT ==============
@@ -40,6 +41,7 @@ BEHAVIOR BY MODULE:
 # ============== LLM HELPER ==============
 
 async def generate_llm_response(prompt: str, system_message: str = None, module: str = None) -> str:
+    print('calling groq')
     """Generate LLM response with module-specific system prompt"""
     from fastapi import HTTPException
 
@@ -49,7 +51,7 @@ async def generate_llm_response(prompt: str, system_message: str = None, module:
                 system_message = get_system_prompt(module)
             else:
                 system_message = SALES_AGENT_SYSTEM_PROMPT
-
+        print('calling groq')
         chat_completion = groq_client.chat.completions.create(
             messages=[
                 {
@@ -68,6 +70,7 @@ async def generate_llm_response(prompt: str, system_message: str = None, module:
         return response
     except Exception as e:
         logging.error(f"LLM Error: {str(e)}")
+        raise e
         raise HTTPException(status_code=500, detail="Error generating AI response")
 
 

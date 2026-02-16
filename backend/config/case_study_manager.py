@@ -54,10 +54,16 @@ class VectorDatabase:
         self.embedding_dimension = 384  # all-MiniLM-L6-v2 dimension
 
         # Initialize embedding model
+        import os
+        os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
+        path_= r"C:\Users\ramesh.p\Downloads\zucisystems-ZSCHN01VM0001-CA.crt"
+        os.environ["REQUESTS_CA_BUNDLE"] = path_
+        os.environ["SSL_CERT_FILE"] = path_
         if EMBEDDINGS_AVAILABLE:
             try:
                 logger.info("Loading sentence-transformers model: all-MiniLM-L6-v2")
-                self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+                self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2', trust_remote_code=True,
+    use_auth_token=False)
                 logger.info("✓ Embedding model loaded successfully")
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")

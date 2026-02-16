@@ -6,6 +6,8 @@ import asyncio
 import platform
 
 # Fix for Windows - Set event loop policy to support Playwright subprocesses
+import httpx
+
 if platform.system() == 'Windows':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
@@ -60,7 +62,7 @@ db = client[os.environ['DB_NAME']]
 # LLM Config
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-groq_client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY, http_client=httpx.Client(verify=False))
 
 # Initialize FastAPI app
 app = FastAPI(title="SalesPro API", version="2.0")
@@ -130,6 +132,7 @@ async def generate_llm_response(prompt: str, system_message: str = None, module:
         return response
     except Exception as e:
         logging.error(f"LLM Error: {str(e)}")
+        raise e
         raise HTTPException(status_code=500, detail="Error generating AI response")
 
 # ============== STARTUP EVENT ==============

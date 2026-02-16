@@ -1,4 +1,6 @@
 import os
+
+import httpx
 from dotenv import load_dotenv
 import logging
 from typing import List, Dict
@@ -15,7 +17,7 @@ class AIContentGenerator:
         if not self.api_key:
             logger.error("GROQ_API_KEY not found in environment variables")
             raise ValueError("GROQ_API_KEY not configured")
-        self.client = Groq(api_key=self.api_key)
+        self.client = Groq(api_key=self.api_key,http_client=httpx.Client(verify=False))
     
     def extract_insights(self, linkedin_data: Dict) -> List[str]:
         """Extract key insights from LinkedIn profile data"""

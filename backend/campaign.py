@@ -500,7 +500,7 @@ Best regards,
 P.S. [Case study reference with link or compelling fact]
 ---
 """
-
+    print('Generate LLM Response for campaign....')
     ai_content = await generate_llm_response(prompt, module='campaign')
 
     await db.campaigns.update_one(
@@ -946,6 +946,8 @@ Hi [Name], this is [Your Name] from [Company].
 
 Again, this is [Your Name] at [number]. Looking forward to connecting.
 """
+
+    print('Generate LLM Response for campaign....')
     content = await generate_llm_response(prompt, module='campaign')
 
     # Update step content
